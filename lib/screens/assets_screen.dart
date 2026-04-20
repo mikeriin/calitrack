@@ -40,13 +40,26 @@ class AssetsScreen extends StatelessWidget {
   }
 }
 
-class _ExercisesTabView extends StatelessWidget {
+class _ExercisesTabView extends StatefulWidget {
   const _ExercisesTabView();
+
+  @override
+  State<_ExercisesTabView> createState() => _ExercisesTabViewState();
+}
+
+class _ExercisesTabViewState extends State<_ExercisesTabView> {
+  ExerciseType? _selectedFilter;
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AssetProvider>();
-    final assets = provider.assets;
+    final allAssets = provider.assets;
+
+    // Filtrage
+    final assets = _selectedFilter == null
+        ? allAssets
+        : allAssets.where((a) => a.type == _selectedFilter).toList();
+
     final colorScheme = Theme.of(context).colorScheme;
     final bool isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
@@ -75,18 +88,67 @@ class _ExercisesTabView extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(20).copyWith(bottom: 100),
-        itemCount: assets.length,
-        itemBuilder: (context, index) {
-          final asset = assets[index];
-          return AssetCard(
-            key: ValueKey(asset.id),
-            asset: asset,
-            onDelete: () => provider.deleteAsset(asset.id),
-            onUpdate: (updated) => provider.updateAsset(updated),
-          );
-        },
+      body: Column(
+        children: [
+          // Barre de filtres horizontale
+          SizedBox(
+            height: 60,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              children: [
+                _buildFilterChip("ALL", null, colorScheme),
+                ...ExerciseType.values.map(
+                  (type) => _buildFilterChip(
+                    type.name.toUpperCase(),
+                    type,
+                    colorScheme,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(20).copyWith(bottom: 100, top: 0),
+              itemCount: assets.length,
+              itemBuilder: (context, index) {
+                final asset = assets[index];
+                return AssetCard(
+                  key: ValueKey(asset.id),
+                  asset: asset,
+                  onDelete: () => provider.deleteAsset(asset.id),
+                  onUpdate: (updated) => provider.updateAsset(updated),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(
+    String label,
+    ExerciseType? type,
+    ColorScheme colorScheme,
+  ) {
+    final isSelected = _selectedFilter == type;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: FilterChip(
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        ),
+        selected: isSelected,
+        onSelected: (_) => setState(() => _selectedFilter = type),
+        backgroundColor: colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.5,
+        ),
+        selectedColor: colorScheme.primary.withValues(alpha: 0.2),
+        checkmarkColor: colorScheme.primary,
+        side: BorderSide.none,
       ),
     );
   }
@@ -99,7 +161,7 @@ class _ConditionsTabView extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<AssetProvider>();
     final conditions = provider.conditions;
-    final accentColor = const Color(0xFF10B981); // Emerald Green for conditions
+    final accentColor = const Color(0xFF10B981);
     final bool isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
@@ -223,12 +285,16 @@ class _AssetCardState extends State<AssetCard> {
           onExpansionChanged: (expanded) {
             setState(() => _isExpanded = expanded);
             if (!expanded) {
-              _saveInlineEdits();
+              Future.delayed(const Duration(milliseconds: 250), () {
+                if (mounted) _saveInlineEdits();
+              });
             }
           },
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           leading: Icon(
-            Icons.fitness_center_rounded,
+            widget.asset.type == ExerciseType.restBlock
+                ? Icons.timer_rounded
+                : Icons.fitness_center_rounded,
             color: colorScheme.onSurfaceVariant,
           ),
           title: Text(
@@ -251,7 +317,7 @@ class _AssetCardState extends State<AssetCard> {
           ),
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: Column(
                 children: [
                   DropdownButtonFormField<ExerciseType>(
@@ -318,10 +384,10 @@ class ConditionCard extends StatefulWidget {
 class _ConditionCardState extends State<ConditionCard> {
   bool _isExpanded = false;
   late ProgressionType _selectedType;
-  late TextEditingController _nameCtrl;
-  late TextEditingController _targetSetsCtrl;
-  late TextEditingController _targetRepsCtrl;
-  late TextEditingController _weightIncrementCtrl;
+  late TextEditingController _nameCtrl,
+      _targetSetsCtrl,
+      _targetRepsCtrl,
+      _weightIncrementCtrl;
 
   @override
   void initState() {
@@ -400,7 +466,9 @@ class _ConditionCardState extends State<ConditionCard> {
           onExpansionChanged: (expanded) {
             setState(() => _isExpanded = expanded);
             if (!expanded) {
-              _saveInlineEdits();
+              Future.delayed(const Duration(milliseconds: 250), () {
+                if (mounted) _saveInlineEdits();
+              });
             }
           },
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -443,7 +511,7 @@ class _ConditionCardState extends State<ConditionCard> {
           ),
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: Column(
                 children: [
                   DropdownButtonFormField<ProgressionType>(

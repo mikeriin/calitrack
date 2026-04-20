@@ -1,11 +1,9 @@
+// lib/services/progress_repository.dart
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/workout_models.dart';
-
-// ==========================================
-// MODELES DE PROGRESSION EN COURS
-// ==========================================
 
 class WorkoutLogEntry {
   final String exerciseName;
@@ -107,10 +105,6 @@ class SessionProgress {
   }
 }
 
-// ==========================================
-// REPOSITORY (Equivalent de DataStore)
-// ==========================================
-
 class ProgressRepository {
   static const _sessionIdKey = 'session_id';
   static const _exIdxKey = 'current_ex_idx';
@@ -123,24 +117,42 @@ class ProgressRepository {
   static const _isSavedKey = 'is_saved';
   static const _statsKey = 'stats_json';
   static const _logsKey = 'logs_json';
+
   static const _isDarkModeKey = 'is_dark_mode';
+  static const _dataFolderKey = 'data_folder_path';
+  static const _garminLinkedKey = 'garmin_linked';
+  static const _notificationsKey = 'daily_notifications';
+  static const _keepAwakeKey = 'keep_awake_active';
 
   final _progressController = StreamController<SessionProgress>.broadcast();
   final _darkModeController = StreamController<bool>.broadcast();
+  final _settingsController = StreamController<void>.broadcast();
 
   Stream<SessionProgress> get progressFlow => _progressController.stream;
   Stream<bool> get isDarkModeFlow => _darkModeController.stream;
+  Stream<void> get settingsFlow => _settingsController.stream;
 
   bool _isDarkMode = true;
   bool get isDarkMode => _isDarkMode;
 
+  String? dataFolder;
+  bool isGarminLinked = false;
+  bool dailyNotifications = false;
+  bool keepAwake = false;
+
   Future<void> init() async {
-    _isDarkMode = await getIsDarkMode();
-    _darkModeController.add(await getIsDarkMode());
+    final prefs = await SharedPreferences.getInstance();
+
+    _isDarkMode = prefs.getBool(_isDarkModeKey) ?? true;
+    dataFolder = prefs.getString(_dataFolderKey);
+    isGarminLinked = prefs.getBool(_garminLinkedKey) ?? false;
+    dailyNotifications = prefs.getBool(_notificationsKey) ?? false;
+    keepAwake = prefs.getBool(_keepAwakeKey) ?? false;
+
+    _darkModeController.add(_isDarkMode);
     _progressController.add(await _readProgressFromPrefs());
   }
 
-  // --- LECTURE (Interne) ---
   Future<SessionProgress> _readProgressFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -172,7 +184,6 @@ class ProgressRepository {
     );
   }
 
-  // --- ECRITURE ---
   Future<void> saveProgress(SessionProgress progress) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -196,7 +207,6 @@ class ProgressRepository {
 
   Future<void> clearProgress() async {
     final prefs = await SharedPreferences.getInstance();
-
     final keysToRemove = [
       _sessionIdKey,
       _exIdxKey,
@@ -210,18 +220,10 @@ class ProgressRepository {
       _statsKey,
       _logsKey,
     ];
-
     for (String key in keysToRemove) {
       await prefs.remove(key);
     }
-
     _progressController.add(SessionProgress());
-  }
-
-  // --- THEME (DARK MODE) ---
-  Future<bool> getIsDarkMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_isDarkModeKey) ?? true;
   }
 
   Future<void> setDarkMode(bool isDark) async {
@@ -229,5 +231,37 @@ class ProgressRepository {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_isDarkModeKey, isDark);
     _darkModeController.add(isDark);
+  }
+
+  Future<void> setDataFolder(String? path) async {
+    dataFolder = path;
+    final prefs = await SharedPreferences.getInstance();
+    if (path != null) {
+      await prefs.setString(_dataFolderKey, path);
+    } else {
+      await prefs.remove(_dataFolderKey);
+    }
+    _settingsController.add(null);
+  }
+
+  Future<void> setGarminLinked(bool linked) async {
+    isGarminLinked = linked;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_garminLinkedKey, linked);
+    _settingsController.add(null);
+  }
+
+  Future<void> setDailyNotifications(bool enabled) async {
+    dailyNotifications = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_notificationsKey, enabled);
+    _settingsController.add(null);
+  }
+
+  Future<void> setKeepAwake(bool keep) async {
+    keepAwake = keep;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keepAwakeKey, keep);
+    _settingsController.add(null);
   }
 }

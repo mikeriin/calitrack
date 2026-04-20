@@ -1,3 +1,5 @@
+// lib/viewmodels/asset_provider.dart
+
 import 'package:flutter/material.dart';
 import '../models/workout_models.dart';
 import '../services/database_service.dart';
@@ -5,7 +7,6 @@ import '../services/database_service.dart';
 class AssetProvider extends ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
 
-  // --- ETAT ---
   List<AssetExercise> _assets = [];
   List<AssetExercise> get assets => _assets;
 
@@ -16,19 +17,26 @@ class AssetProvider extends ChangeNotifier {
     _loadAssets();
   }
 
-  // --- LECTURE ---
   Future<void> _loadAssets() async {
-    _assets = await _dbService.getAllAssets();
     try {
-      // Assurez-vous d'implémenter getAllConditions() dans DatabaseService
-      _conditions = await _dbService.getAllConditions();
+      final rawAssets = await _dbService.getAllAssets();
+      // On retire le sort alphabétique, ils resteront dans l'ordre d'insertion (création)
+      _assets = List<AssetExercise>.from(rawAssets);
     } catch (e) {
-      _conditions = []; // Fallback si la table n'existe pas encore
+      debugPrint("Erreur lors du chargement des assets: $e");
+      _assets = [];
     }
+
+    try {
+      final rawConditions = await _dbService.getAllConditions();
+      _conditions = List<ProgressionCondition>.from(rawConditions);
+    } catch (e) {
+      debugPrint("Erreur lors du chargement des conditions: $e");
+      _conditions = [];
+    }
+
     notifyListeners();
   }
-
-  // --- CRUD ASSETS ---
 
   Future<void> addAsset(AssetExercise newAsset) async {
     await _dbService.insertAsset(newAsset);
@@ -45,8 +53,6 @@ class AssetProvider extends ChangeNotifier {
     await _loadAssets();
   }
 
-  // --- CRUD CONDITIONS ---
-
   Future<void> addCondition(ProgressionCondition newCondition) async {
     try {
       await _dbService.insertCondition(newCondition);
@@ -58,7 +64,6 @@ class AssetProvider extends ChangeNotifier {
 
   Future<void> updateCondition(ProgressionCondition updatedCondition) async {
     try {
-      // insertCondition gère l'update grâce au ConflictAlgorithm.replace dans la BDD
       await _dbService.insertCondition(updatedCondition);
       await _loadAssets();
     } catch (e) {

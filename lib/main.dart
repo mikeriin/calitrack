@@ -6,7 +6,7 @@ import 'navigation/app_router.dart';
 import 'package:provider/provider.dart';
 import 'viewmodels/session_provider.dart';
 import 'viewmodels/tracker_provider.dart';
-import 'viewmodels/asset_provider.dart'; 
+import 'viewmodels/asset_provider.dart';
 
 final progressRepository = ProgressRepository();
 final databaseService = DatabaseService();
@@ -24,7 +24,7 @@ void main() async {
           create: (_) => SessionProvider(progressRepository),
         ),
         ChangeNotifierProvider(create: (_) => TrackerProvider()),
-        // Injection de l'AssetProvider ici
+        // Inject AssetProvider here
         ChangeNotifierProvider(create: (_) => AssetProvider()),
       ],
       child: const CaliTrackApp(),

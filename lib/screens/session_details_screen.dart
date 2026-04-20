@@ -27,17 +27,29 @@ class SessionDetailsScreen extends StatelessWidget {
     final conditions = assetProvider.conditions;
     final accentColor = const Color(0xFF10B981);
 
-    // Détection de l'ouverture du clavier
     final bool isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      // Si le clavier est ouvert, on masque totalement le bloc bouton + conditions
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: isKeyboardOpen
           ? null
-          : Padding(
-              padding: const EdgeInsets.only(left: 32.0),
+          : Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                // Very diffuse dither/glow effect under the area
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(
+                      context,
+                    ).scaffoldBackgroundColor.withValues(alpha: 0.9),
+                    blurRadius: 30,
+                    spreadRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,7 +58,6 @@ class SessionDetailsScreen extends StatelessWidget {
                   if (conditions.isNotEmpty)
                     Flexible(
                       child: ShaderMask(
-                        // Effet fondu sur la partie droite
                         shaderCallback: (Rect bounds) {
                           return const LinearGradient(
                             begin: Alignment.centerLeft,
@@ -62,7 +73,6 @@ class SessionDetailsScreen extends StatelessWidget {
                         blendMode: BlendMode.dstIn,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
-                          // Padding à droite pour pouvoir scroller le dernier élément hors du fondu
                           padding: const EdgeInsets.only(right: 24),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -157,7 +167,7 @@ class SessionDetailsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (session.exercices.isNotEmpty && progress.startTime == 0)
+                if (session.exercises.isNotEmpty && progress.startTime == 0)
                   IconButton.filled(
                     iconSize: 24,
                     onPressed: () {
@@ -189,21 +199,21 @@ class SessionDetailsScreen extends StatelessWidget {
               ],
             ),
           ),
-          itemCount: session.exercices.length + 1,
+          itemCount: session.exercises.length + 1,
           proxyDecorator: (child, index, animation) =>
               Material(color: Colors.transparent, child: child),
           onReorder: (oldIndex, newIndex) {
-            if (oldIndex >= session.exercices.length) return;
-            if (newIndex > session.exercices.length)
-              newIndex = session.exercices.length;
+            if (oldIndex >= session.exercises.length) return;
+            if (newIndex > session.exercises.length)
+              newIndex = session.exercises.length;
             if (newIndex > oldIndex) newIndex -= 1;
-            final items = List<Exercice>.from(session.exercices);
+            final items = List<Exercise>.from(session.exercises);
             final item = items.removeAt(oldIndex);
             items.insert(newIndex, item);
-            sessionProvider.updateExercicesOrder(session.id, items);
+            sessionProvider.updateExercisesOrder(session.id, items);
           },
           itemBuilder: (context, index) {
-            if (index == session.exercices.length) {
+            if (index == session.exercises.length) {
               return Padding(
                 key: const ValueKey("footer_clean_button"),
                 padding: const EdgeInsets.symmetric(
@@ -235,18 +245,18 @@ class SessionDetailsScreen extends StatelessWidget {
               );
             }
 
-            final exercice = session.exercices[index];
+            final exercise = session.exercises[index];
             return Padding(
-              key: ValueKey(exercice.id),
+              key: ValueKey(exercise.id),
               padding: const EdgeInsets.symmetric(
                 horizontal: 20,
               ).copyWith(bottom: 12),
-              child: ExerciceCard(
-                exercice: exercice,
+              child: ExerciseCard(
+                exercise: exercise,
                 onDelete: () =>
-                    sessionProvider.deleteExercice(session.id, exercice.id),
+                    sessionProvider.deleteExercise(session.id, exercise.id),
                 onUpdate: (updatedEx) =>
-                    sessionProvider.updateExercice(session.id, updatedEx),
+                    sessionProvider.updateExercise(session.id, updatedEx),
               ),
             );
           },
@@ -267,7 +277,7 @@ class AssetSelectionGridDialog extends StatelessWidget {
   final Session session;
   const AssetSelectionGridDialog({super.key, required this.session});
 
-  Exercice _createDefaultExercice(AssetExercise asset) {
+  Exercise _createDefaultExercise(AssetExercise asset) {
     switch (asset.type) {
       case ExerciseType.classic:
         return Classic(
@@ -314,11 +324,23 @@ class AssetSelectionGridDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              "ADD EXERCISE",
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "ADD EXERCISE",
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(context),
+                  color: colorScheme.onSurfaceVariant,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             Flexible(
@@ -328,18 +350,21 @@ class AssetSelectionGridDialog extends StatelessWidget {
                   crossAxisCount: 3,
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
-                  childAspectRatio: 0.8,
+                  childAspectRatio: 0.55,
                 ),
                 itemCount: assets.length,
                 itemBuilder: (context, index) {
                   final asset = assets[index];
                   return _AppIconWidget(
-                    icon: Icons.fitness_center_rounded,
+                    icon: asset.type == ExerciseType.restBlock
+                        ? Icons.timer_rounded
+                        : Icons.fitness_center_rounded,
                     label: asset.name,
+                    topLabel: asset.type.label.toUpperCase(),
                     color: colorScheme.primary,
                     onTap: () {
-                      final newEx = _createDefaultExercice(asset);
-                      sessionProvider.addExercice(session.id, newEx);
+                      final newEx = _createDefaultExercise(asset);
+                      sessionProvider.addExercise(session.id, newEx);
                       Navigator.pop(context);
                     },
                   );
@@ -357,12 +382,14 @@ class _AppIconWidget extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
+  final String? topLabel;
   final VoidCallback onTap;
 
   const _AppIconWidget({
     required this.icon,
     required this.label,
     required this.color,
+    this.topLabel,
     required this.onTap,
   });
 
@@ -373,6 +400,20 @@ class _AppIconWidget extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (topLabel != null) ...[
+            Text(
+              topLabel!,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
           Container(
             height: 56,
             width: 56,
@@ -396,23 +437,23 @@ class _AppIconWidget extends StatelessWidget {
   }
 }
 
-class ExerciceCard extends StatefulWidget {
-  final Exercice exercice;
+class ExerciseCard extends StatefulWidget {
+  final Exercise exercise;
   final VoidCallback onDelete;
-  final void Function(Exercice) onUpdate;
+  final void Function(Exercise) onUpdate;
 
-  const ExerciceCard({
+  const ExerciseCard({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.onDelete,
     required this.onUpdate,
   });
 
   @override
-  State<ExerciceCard> createState() => _ExerciceCardState();
+  State<ExerciseCard> createState() => _ExerciseCardState();
 }
 
-class _ExerciceCardState extends State<ExerciceCard> {
+class _ExerciseCardState extends State<ExerciseCard> {
   bool _isExpanded = false;
   late TextEditingController _setsCtrl,
       _restMinCtrl,
@@ -436,16 +477,16 @@ class _ExerciceCardState extends State<ExerciceCard> {
   }
 
   @override
-  void didUpdateWidget(covariant ExerciceCard oldWidget) {
+  void didUpdateWidget(covariant ExerciseCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.exercice != widget.exercice) {
+    if (oldWidget.exercise != widget.exercise) {
       _disposeControllers();
       _initControllers();
     }
   }
 
   void _initControllers() {
-    final ex = widget.exercice;
+    final ex = widget.exercise;
     _setsCtrl = TextEditingController();
     _restMinCtrl = TextEditingController();
     _restSecCtrl = TextEditingController();
@@ -533,11 +574,11 @@ class _ExerciceCardState extends State<ExerciceCard> {
   }
 
   void _saveInlineEdits() {
-    final ex = widget.exercice;
+    final ex = widget.exercise;
     final restTotal =
         (int.tryParse(_restMinCtrl.text) ?? 0) * 60 +
         (int.tryParse(_restSecCtrl.text) ?? 0);
-    Exercice updatedEx;
+    Exercise updatedEx;
 
     if (ex is Classic)
       updatedEx = Classic(
@@ -630,12 +671,10 @@ class _ExerciceCardState extends State<ExerciceCard> {
 
     return DragTarget<ProgressionCondition>(
       hitTestBehavior: HitTestBehavior.opaque,
-      onAcceptWithDetails: (details) {
-        widget.onUpdate(widget.exercice.copyWithCondition(details.data));
-      },
+      onAcceptWithDetails: (details) =>
+          widget.onUpdate(widget.exercise.copyWithCondition(details.data)),
       builder: (context, candidateData, rejectedData) {
         final isHovered = candidateData.isNotEmpty;
-
         return Container(
           decoration: BoxDecoration(
             color: colorScheme.surface,
@@ -643,7 +682,9 @@ class _ExerciceCardState extends State<ExerciceCard> {
             border: Border.all(
               color: isHovered
                   ? accentColor
-                  : colorScheme.surfaceContainerHighest,
+                  : (_isExpanded
+                        ? colorScheme.primary
+                        : colorScheme.surfaceContainerHighest),
               width: isHovered ? 2 : 1,
             ),
           ),
@@ -652,21 +693,20 @@ class _ExerciceCardState extends State<ExerciceCard> {
             child: ExpansionTile(
               onExpansionChanged: (expanded) {
                 setState(() => _isExpanded = expanded);
-                // Mise à jour déclenchée uniquement lors de la réduction de la carte
-                if (!expanded) {
-                  _saveInlineEdits();
-                }
+                if (!expanded) _saveInlineEdits();
               },
               tilePadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 4,
               ),
               leading: Icon(
-                Icons.drag_indicator_rounded,
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                widget.exercise is RestBlock
+                    ? Icons.timer_rounded
+                    : Icons.fitness_center_rounded,
+                color: colorScheme.onSurfaceVariant,
               ),
               title: Text(
-                widget.exercice.name.toUpperCase(),
+                widget.exercise.name.toUpperCase(),
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(color: colorScheme.onSurface),
@@ -700,9 +740,8 @@ class _ExerciceCardState extends State<ExerciceCard> {
 
   Widget _buildSummary(BuildContext context, Color accentColor) {
     String summary = "";
-    final ex = widget.exercice;
+    final ex = widget.exercise;
 
-    // Fonction utilitaire pour formater le temps de repos
     String formatRest(int seconds) {
       if (seconds <= 0) return "";
       final m = seconds ~/ 60;
@@ -714,7 +753,7 @@ class _ExerciceCardState extends State<ExerciceCard> {
 
     if (ex is Classic)
       summary =
-          "${ex.sets} x ${ex.reps} @ ${ex.weight}kg${formatRest(ex.rest)}";
+          "${ex.sets} x ${ex.reps}${ex.weight > 0 ? ' @ ${ex.weight}kg' : ''}${formatRest(ex.rest)}";
     else if (ex is Amrap)
       summary = "AMRAP - ${ex.timeCapMinutes} MIN";
     else if (ex is Emom)
@@ -727,7 +766,8 @@ class _ExerciceCardState extends State<ExerciceCard> {
     else if (ex is Circuit)
       summary = "CIRCUIT - ${ex.sets} ROUNDS${formatRest(ex.restSeconds)}";
     else if (ex is IsoMax)
-      summary = "ISOMETRIC${formatRest(ex.restSeconds)}";
+      summary =
+          "ISOMETRIC${ex.weight > 0 ? ' @ ${ex.weight}kg' : ''}${formatRest(ex.restSeconds)}";
     else if (ex is IsoPositions)
       summary = "ISOMETRIC${formatRest(ex.restSeconds)}";
     else if (ex is RestBlock)
@@ -775,7 +815,7 @@ class _ExerciceCardState extends State<ExerciceCard> {
   }
 
   Widget _buildInlineFormForType() {
-    final ex = widget.exercice;
+    final ex = widget.exercise;
     if (ex is Classic) {
       return Column(
         mainAxisSize: MainAxisSize.min,

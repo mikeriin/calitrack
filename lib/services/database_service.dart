@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import '../models/workout_models.dart';
 
 // ==========================================
-// CLASSES DE REGROUPEMENT (Relations)
+// GROUPING CLASSES (Relationships)
 // ==========================================
 
 class HistoryExerciseWithSets {
@@ -21,7 +21,7 @@ class FullHistorySession {
 }
 
 // ==========================================
-// SERVICE DE BASE DE DONNEES (Singleton)
+// DATABASE SERVICE (Singleton)
 // ==========================================
 
 class DatabaseService {
@@ -42,14 +42,26 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3, // Montée de version suite à l'ajout de targetSets
+      version:
+          4, // Version bumped to handle translation of "exercices" to "exercises" column
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 3) {
+        if (oldVersion < 4) {
+          // Recreate tables to reflect naming changes if necessary
           await db.execute('DROP TABLE IF EXISTS progression_conditions');
           await db.execute('DROP TABLE IF EXISTS conditions');
+          await db.execute('DROP TABLE IF EXISTS sessions');
+
+          await db.execute('''
+              CREATE TABLE sessions (
+                id TEXT PRIMARY KEY,
+                title TEXT,
+                day TEXT,
+                exercises TEXT
+              )
+            ''');
 
           await db.execute('''
               CREATE TABLE progression_conditions (
@@ -61,6 +73,7 @@ class DatabaseService {
                 weightIncrement REAL
               )
             ''');
+
           await db.execute('''
               CREATE TABLE conditions (
                 id TEXT PRIMARY KEY,
@@ -79,7 +92,7 @@ class DatabaseService {
             id TEXT PRIMARY KEY,
             title TEXT,
             day TEXT,
-            exercices TEXT
+            exercises TEXT
           )
         ''');
 
@@ -153,7 +166,7 @@ class DatabaseService {
   }
 
   // ==========================================
-  // DAO : SESSIONS (Programmes en cours)
+  // DAO: SESSIONS (Current Programs)
   // ==========================================
 
   Future<void> insertSession(Session session) async {
@@ -177,7 +190,7 @@ class DatabaseService {
   }
 
   // ==========================================
-  // DAO : HISTORIQUE (Tracker)
+  // DAO: HISTORY (Tracker)
   // ==========================================
 
   Future<void> insertHistorySession(HistorySession session) async {
@@ -234,7 +247,7 @@ class DatabaseService {
 
     List<FullHistorySession> fullHistory = [];
 
-    // 2. Pour chaque session, récupérer ses exercices et ses séries
+    // 2. For each session, fetch its exercises and sets
     for (var session in sessions) {
       final List<Map<String, dynamic>> exerciseMaps = await db.query(
         'history_exercises',
@@ -292,7 +305,7 @@ class DatabaseService {
   }
 
   // ==========================================
-  // DAO : ASSETS
+  // DAO: ASSETS
   // ==========================================
 
   Future<void> insertAsset(AssetExercise asset) async {
@@ -316,7 +329,7 @@ class DatabaseService {
   }
 
   // ==========================================
-  // DAO : CONDITIONS (Progression)
+  // DAO: CONDITIONS (Progression)
   // ==========================================
 
   Future<void> insertCondition(ProgressionCondition condition) async {

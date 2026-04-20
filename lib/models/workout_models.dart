@@ -36,7 +36,7 @@ enum Day {
 }
 
 // ==========================================
-// CONDITIONS D'ÉVOLUTION (Progression Science)
+// PROGRESSION CONDITIONS (Progression Science)
 // ==========================================
 
 enum ProgressionType {
@@ -52,7 +52,7 @@ class ProgressionCondition {
   final String id;
   final String name;
   final ProgressionType type;
-  final int targetSets; // <-- NOUVEAU
+  final int targetSets;
   final int targetReps;
   final double weightIncrement;
 
@@ -60,7 +60,7 @@ class ProgressionCondition {
     String? id,
     required this.name,
     required this.type,
-    required this.targetSets, // <-- NOUVEAU
+    required this.targetSets,
     required this.targetReps,
     required this.weightIncrement,
   }) : id = id ?? uuid.v4();
@@ -84,7 +84,7 @@ class ProgressionCondition {
         (e) => e.name == map['type'],
         orElse: () => ProgressionType.linearWeight,
       ),
-      targetSets: map['targetSets'] ?? 0, // <-- NOUVEAU
+      targetSets: map['targetSets'] ?? 0,
       targetReps: map['targetReps'] ?? 0,
       weightIncrement: map['weightIncrement']?.toDouble() ?? 0.0,
     );
@@ -92,7 +92,7 @@ class ProgressionCondition {
 }
 
 // ==========================================
-// DATA CLASSES DE BASE
+// BASE DATA CLASSES
 // ==========================================
 
 class SubExercise {
@@ -116,19 +116,19 @@ class SubExercise {
 }
 
 // ==========================================
-// POLYMORPHISME DES EXERCICES (SEALED CLASS)
+// EXERCISE POLYMORPHISM (SEALED CLASS)
 // ==========================================
 
-sealed class Exercice {
+sealed class Exercise {
   String get id;
   String get name;
   ProgressionCondition? get condition;
 
   Map<String, dynamic> toMap();
 
-  Exercice copyWithCondition(ProgressionCondition? newCondition);
+  Exercise copyWithCondition(ProgressionCondition? newCondition);
 
-  factory Exercice.fromMap(Map<String, dynamic> map) {
+  factory Exercise.fromMap(Map<String, dynamic> map) {
     final type = map['type'] as String?;
     if (type == null) throw Exception("'type' missing from the JSON");
 
@@ -235,12 +235,12 @@ sealed class Exercice {
           condition: parsedCondition,
         );
       default:
-        throw Exception("Unknown type : $type");
+        throw Exception("Unknown type: $type");
     }
   }
 }
 
-class Classic implements Exercice {
+class Classic implements Exercise {
   @override
   final String id;
   @override
@@ -288,7 +288,7 @@ class Classic implements Exercice {
   };
 }
 
-class Amrap implements Exercice {
+class Amrap implements Exercise {
   @override
   final String id;
   @override
@@ -328,7 +328,7 @@ class Amrap implements Exercice {
   };
 }
 
-class Emom implements Exercice {
+class Emom implements Exercise {
   @override
   final String id;
   @override
@@ -372,7 +372,7 @@ class Emom implements Exercice {
   };
 }
 
-class RestPause implements Exercice {
+class RestPause implements Exercise {
   @override
   final String id;
   @override
@@ -412,7 +412,7 @@ class RestPause implements Exercice {
   };
 }
 
-class Cluster implements Exercice {
+class Cluster implements Exercise {
   @override
   final String id;
   @override
@@ -452,7 +452,7 @@ class Cluster implements Exercice {
   };
 }
 
-class Circuit implements Exercice {
+class Circuit implements Exercise {
   @override
   final String id;
   @override
@@ -496,7 +496,7 @@ class Circuit implements Exercice {
   };
 }
 
-class IsoMax implements Exercice {
+class IsoMax implements Exercise {
   @override
   final String id;
   @override
@@ -540,7 +540,7 @@ class IsoMax implements Exercice {
   };
 }
 
-class IsoPositions implements Exercice {
+class IsoPositions implements Exercise {
   @override
   final String id;
   @override
@@ -584,7 +584,7 @@ class IsoPositions implements Exercice {
   };
 }
 
-class RestBlock implements Exercice {
+class RestBlock implements Exercise {
   @override
   final String id;
   @override
@@ -621,20 +621,20 @@ class RestBlock implements Exercice {
 }
 
 // ==========================================
-// MODELES DE SESSION
+// SESSION MODELS
 // ==========================================
 
 class Session {
   final String id;
   final String title;
   final Day day;
-  final List<Exercice> exercices;
+  final List<Exercise> exercises;
 
   Session({
     String? id,
     required this.title,
     required this.day,
-    this.exercices = const [],
+    this.exercises = const [],
   }) : id = id ?? uuid.v4();
 
   Map<String, dynamic> toMap() {
@@ -642,16 +642,16 @@ class Session {
       'id': id,
       'title': title,
       'day': day.name,
-      'exercices': jsonEncode(exercices.map((e) => e.toMap()).toList()),
+      'exercises': jsonEncode(exercises.map((e) => e.toMap()).toList()),
     };
   }
 
   factory Session.fromMap(Map<String, dynamic> map) {
-    var exercicesList = <Exercice>[];
-    if (map['exercices'] != null) {
-      final decoded = jsonDecode(map['exercices']) as List;
-      exercicesList = decoded
-          .map((e) => Exercice.fromMap(e as Map<String, dynamic>))
+    var exercisesList = <Exercise>[];
+    if (map['exercises'] != null) {
+      final decoded = jsonDecode(map['exercises']) as List;
+      exercisesList = decoded
+          .map((e) => Exercise.fromMap(e as Map<String, dynamic>))
           .toList();
     }
 
@@ -662,13 +662,13 @@ class Session {
         (d) => d.name == map['day'],
         orElse: () => Day.sunday,
       ),
-      exercices: exercicesList,
+      exercises: exercisesList,
     );
   }
 }
 
 // ==========================================
-// MODELES D'HISTORIQUE (SQLite)
+// HISTORY MODELS (SQLite)
 // ==========================================
 
 class HistorySession {
@@ -788,7 +788,7 @@ class HistorySet {
 }
 
 // ==========================================
-// MODELES ASSETS & PROGRESSION
+// ASSETS & PROGRESSION MODELS
 // ==========================================
 
 class AssetExercise {

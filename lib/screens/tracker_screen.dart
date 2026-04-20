@@ -276,9 +276,7 @@ class _ConsistencyHeatmap extends StatelessWidget {
           backgroundColor: colorScheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: colorScheme.surfaceContainerHighest,
-            ), // CORRECTION DU BORDER
+            side: BorderSide(color: colorScheme.surfaceContainerHighest),
           ),
           title: Text(
             formattedDate,
@@ -379,7 +377,12 @@ class _ExerciseExpandableCardState extends State<_ExerciseExpandableCard> {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.surfaceContainerHighest),
+        // SURBRILLANCE identique à assets_screen
+        border: Border.all(
+          color: _expanded
+              ? colorScheme.primary
+              : colorScheme.surfaceContainerHighest,
+        ),
       ),
       child: Column(
         children: [
@@ -506,7 +509,6 @@ class _ExerciseExpandableCardState extends State<_ExerciseExpandableCard> {
             isCurved: true,
             color: colorScheme.secondary,
             barWidth: 2,
-            // CORRECTION DES UNDERSCORES : Utilisation de noms explicites au lieu de _, __, ___, ____
             dotData: FlDotData(
               show: true,
               getDotPainter: (spot, percent, barData, index) =>

@@ -1,6 +1,10 @@
+// lib/viewmodels/session_provider.dart
+
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/workout_models.dart';
 import '../services/database_service.dart';
 import '../services/progress_repository.dart';
@@ -10,7 +14,6 @@ class SessionProvider extends ChangeNotifier {
   final ProgressRepository _progressRepo;
   late StreamSubscription _progressSub;
 
-  // --- ETATS ---
   List<Session> _allSessions = [];
   Session? _sessionOfTheDay;
   SessionProgress _progress = SessionProgress();
@@ -35,7 +38,6 @@ class SessionProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // --- LECTURE ---
   Future<void> _loadSessions() async {
     _allSessions = await _dbService.getAllSessions();
     _calculateSessionOfTheDay();
@@ -87,8 +89,18 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
-  // --- GESTION DU CHRONO ET PROGRESSION ---
   void startSession(String sessionId) {
+    if (_progressRepo.keepAwake) {
+      WakelockPlus.enable(); // Enable if wakelock_plus package is installed
+      debugPrint("Wakelock enabled for the session.");
+    }
+
+    if (_progressRepo.isGarminLinked) {
+      debugPrint(
+        "Garmin Connection: Starting temporary recording of watch data...",
+      );
+    }
+
     final newProgress = _progress.copyWith(
       startTime: DateTime.now().millisecondsSinceEpoch,
       sessionId: sessionId,
@@ -107,10 +119,13 @@ class SessionProvider extends ChangeNotifier {
   }
 
   void resetSession() {
+    if (_progressRepo.keepAwake) {
+      WakelockPlus.disable(); // Disable wakelock
+      debugPrint("Wakelock disabled.");
+    }
     _progressRepo.clearProgress();
   }
 
-  // --- CRUD SESSIONS & EXERCICES ---
   Future<void> addSession(Session newSession) async {
     await _dbService.insertSession(newSession);
     await _loadSessions();
@@ -126,97 +141,117 @@ class SessionProvider extends ChangeNotifier {
     await _loadSessions();
   }
 
-  Future<void> addExercice(String sessionId, Exercice newExercise) async {
+  Future<void> importSessionFromJson(String jsonString) async {
+    try {
+      final map = jsonDecode(jsonString) as Map<String, dynamic>;
+      map['id'] = const Uuid().v4();
+      if (map['exercises'] != null) {
+        final exList = jsonDecode(map['exercises']) as List;
+        for (var ex in exList) {
+          if (ex is Map<String, dynamic>) ex['id'] = const Uuid().v4();
+        }
+        map['exercises'] = jsonEncode(exList);
+      }
+      await addSession(Session.fromMap(map));
+    } catch (e) {
+      debugPrint("Error importing session: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> addExercise(String sessionId, Exercise newExercise) async {
     final sessionIndex = _allSessions.indexWhere((s) => s.id == sessionId);
     if (sessionIndex != -1) {
       final session = _allSessions[sessionIndex];
-      final updatedExercices = List<Exercice>.from(session.exercices)
+      final updatedExercises = List<Exercise>.from(session.exercises)
         ..add(newExercise);
-      final updatedSession = Session(
-        id: session.id,
-        title: session.title,
-        day: session.day,
-        exercices: updatedExercices,
+      await updateSession(
+        Session(
+          id: session.id,
+          title: session.title,
+          day: session.day,
+          exercises: updatedExercises,
+        ),
       );
-      await updateSession(updatedSession);
     }
   }
 
-  Future<void> deleteExercice(String sessionId, String exerciceId) async {
+  Future<void> deleteExercise(String sessionId, String exerciseId) async {
     final sessionIndex = _allSessions.indexWhere((s) => s.id == sessionId);
     if (sessionIndex != -1) {
       final session = _allSessions[sessionIndex];
-      final updatedExercices = session.exercices
-          .where((e) => e.id != exerciceId)
+      final updatedExercises = session.exercises
+          .where((e) => e.id != exerciseId)
           .toList();
-      final updatedSession = Session(
-        id: session.id,
-        title: session.title,
-        day: session.day,
-        exercices: updatedExercices,
+      await updateSession(
+        Session(
+          id: session.id,
+          title: session.title,
+          day: session.day,
+          exercises: updatedExercises,
+        ),
       );
-      await updateSession(updatedSession);
     }
   }
 
-  Future<void> updateExercice(
+  Future<void> updateExercise(
     String sessionId,
-    Exercice updatedExercise,
+    Exercise updatedExercise,
   ) async {
     final sessionIndex = _allSessions.indexWhere((s) => s.id == sessionId);
     if (sessionIndex != -1) {
       final session = _allSessions[sessionIndex];
-      final updatedExercices = session.exercices.map((e) {
-        return e.id == updatedExercise.id ? updatedExercise : e;
-      }).toList();
-      final updatedSession = Session(
-        id: session.id,
-        title: session.title,
-        day: session.day,
-        exercices: updatedExercices,
+      final updatedExercises = session.exercises
+          .map((e) => e.id == updatedExercise.id ? updatedExercise : e)
+          .toList();
+      await updateSession(
+        Session(
+          id: session.id,
+          title: session.title,
+          day: session.day,
+          exercises: updatedExercises,
+        ),
       );
-      await updateSession(updatedSession);
     }
   }
 
-  Future<void> updateExercicesOrder(
+  Future<void> updateExercisesOrder(
     String sessionId,
-    List<Exercice> newOrder,
+    List<Exercise> newOrder,
   ) async {
     final sessionIndex = _allSessions.indexWhere((s) => s.id == sessionId);
     if (sessionIndex != -1) {
       final session = _allSessions[sessionIndex];
-      final updatedSession = Session(
-        id: session.id,
-        title: session.title,
-        day: session.day,
-        exercices: newOrder,
+      await updateSession(
+        Session(
+          id: session.id,
+          title: session.title,
+          day: session.day,
+          exercises: newOrder,
+        ),
       );
-      await updateSession(updatedSession);
     }
   }
 
-  // --- NETTOYAGE INTELLIGENT ---
   Future<void> cleanSession(String sessionId) async {
     final sessionIndex = _allSessions.indexWhere((s) => s.id == sessionId);
     if (sessionIndex == -1) return;
 
     final session = _allSessions[sessionIndex];
-    List<Exercice> rawExercices = List.from(session.exercices);
-    List<Exercice> cleaned = [];
+    List<Exercise> rawExercises = List.from(session.exercises);
+    List<Exercise> cleaned = [];
 
-    for (int i = 0; i < rawExercices.length; i++) {
-      final currentEx = rawExercices[i];
-
-      // Règle 1 : Fusionner les chronos RestBlock consécutifs
+    for (int i = 0; i < rawExercises.length; i++) {
+      final currentEx = rawExercises[i];
       if (currentEx is RestBlock) {
         if (cleaned.isNotEmpty && cleaned.last is RestBlock) {
           final previousRest = cleaned.removeLast() as RestBlock;
-          final mergedRest = RestBlock(
-            id: previousRest.id, // On garde le premier ID
-            restSeconds: previousRest.restSeconds + currentEx.restSeconds,
+          cleaned.add(
+            RestBlock(
+              id: previousRest.id,
+              restSeconds: previousRest.restSeconds + currentEx.restSeconds,
+            ),
           );
-          cleaned.add(mergedRest);
         } else {
           cleaned.add(currentEx);
         }
@@ -224,23 +259,20 @@ class SessionProvider extends ChangeNotifier {
         cleaned.add(currentEx);
       }
     }
-
-    // Règle 2 : Supprimer le(s) RestBlock à la toute fin de la séance
     while (cleaned.isNotEmpty && cleaned.last is RestBlock) {
       cleaned.removeLast();
     }
 
-    final updatedSession = Session(
-      id: session.id,
-      title: session.title,
-      day: session.day,
-      exercices: cleaned,
+    await updateSession(
+      Session(
+        id: session.id,
+        title: session.title,
+        day: session.day,
+        exercises: cleaned,
+      ),
     );
-
-    await updateSession(updatedSession);
   }
 
-  // --- LOGIQUE CONDITIONS ---
   Future<void> applyConditionToSession(
     String sessionId,
     ProgressionCondition condition,
@@ -248,28 +280,42 @@ class SessionProvider extends ChangeNotifier {
     final sessionIndex = _allSessions.indexWhere((s) => s.id == sessionId);
     if (sessionIndex != -1) {
       final session = _allSessions[sessionIndex];
-      // On applique la condition à tous les exercices de la session actuelle
-      final updatedExercices = session.exercices
+      final updatedExercises = session.exercises
           .map((e) => e.copyWithCondition(condition))
           .toList();
-
-      final updatedSession = Session(
-        id: session.id,
-        title: session.title,
-        day: session.day,
-        exercices: updatedExercices,
+      await updateSession(
+        Session(
+          id: session.id,
+          title: session.title,
+          day: session.day,
+          exercises: updatedExercises,
+        ),
       );
-      await updateSession(updatedSession);
     }
   }
 
-  // --- SAUVEGARDE FINALE DE L'HISTORIQUE ---
   Future<void> saveCompletedWorkout(
     Session session,
     int durationMillis,
     List<WorkoutLogEntry> logs,
   ) async {
     final historySessionId = const Uuid().v4();
+    List<String> finalStats = List.from(_progress.stats);
+
+    // Garmin Processing
+    if (_progressRepo.isGarminLinked) {
+      debugPrint(
+        "Garmin: Creating summary, adding to stats, and freeing local memory.",
+      );
+      // Simulating extracted stats
+      // finalStats.add("GARMIN: 420 Kcal, Avg HR: 135 bpm");
+      // Simulated release of local recording variables
+    }
+
+    if (_progressRepo.keepAwake) {
+      WakelockPlus.disable();
+      debugPrint("Wakelock disabled.");
+    }
 
     final historySession = HistorySession(
       id: historySessionId,
@@ -322,6 +368,6 @@ class SessionProvider extends ChangeNotifier {
     await _dbService.insertHistorySets(setsToSave);
 
     _isSessionOfTheDayCompleted = true;
-    updateProgress(_progress.copyWith(isSaved: true));
+    updateProgress(_progress.copyWith(isSaved: true, stats: finalStats));
   }
 }

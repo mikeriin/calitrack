@@ -335,9 +335,9 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
                 ),
               ),
               const SizedBox(height: 60),
-              if (activeSession.exercices.isNotEmpty)
+              if (activeSession.exercises.isNotEmpty)
                 UpcomingExerciseCard(
-                  exercice: activeSession.exercices.first,
+                  exercise: activeSession.exercises.first,
                   titleLabel: "FIRST EXERCISE",
                 ),
               const SizedBox(height: 32),
@@ -347,8 +347,8 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
       );
     }
 
-    double sessionProgress = activeSession.exercices.isNotEmpty
-        ? (progress.currentExIdx / activeSession.exercices.length).clamp(
+    double sessionProgress = activeSession.exercises.isNotEmpty
+        ? (progress.currentExIdx / activeSession.exercises.length).clamp(
             0.0,
             1.0,
           )
@@ -421,18 +421,18 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               children: [
-                if (progress.currentExIdx < activeSession.exercices.length) ...[
+                if (progress.currentExIdx < activeSession.exercises.length) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 32),
                     child: Text(
-                      activeSession.exercices[progress.currentExIdx].name
+                      activeSession.exercises[progress.currentExIdx].name
                           .toUpperCase(),
                       style: Theme.of(context).textTheme.headlineMedium,
                       textAlign: TextAlign.center,
                     ),
                   ),
                   _buildWorkoutRouter(
-                    activeSession.exercices[progress.currentExIdx],
+                    activeSession.exercises[progress.currentExIdx],
                     progress,
                     provider,
                     activeSession,
@@ -523,89 +523,89 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
   }
 
   Widget _buildWorkoutRouter(
-    Exercice exercice,
+    Exercise exercise,
     SessionProgress progress,
     SessionProvider provider,
     Session session,
   ) {
     final exKey = ValueKey(progress.currentExIdx);
 
-    if (exercice is Classic) {
+    if (exercise is Classic) {
       return ClassicWorkoutView(
         key: exKey,
-        exercice: exercice,
+        exercise: exercise,
         progress: progress,
         provider: provider,
         session: session,
       );
     }
-    if (exercice is Amrap) {
+    if (exercise is Amrap) {
       return AmrapWorkoutView(
         key: exKey,
-        exercice: exercice,
+        exercise: exercise,
         progress: progress,
         provider: provider,
         session: session,
       );
     }
-    if (exercice is Emom) {
+    if (exercise is Emom) {
       return EmomWorkoutView(
         key: exKey,
-        exercice: exercice,
+        exercise: exercise,
         progress: progress,
         provider: provider,
         session: session,
       );
     }
-    if (exercice is RestPause) {
+    if (exercise is RestPause) {
       return RestPauseWorkoutView(
         key: exKey,
-        exercice: exercice,
+        exercise: exercise,
         progress: progress,
         provider: provider,
         session: session,
       );
     }
-    if (exercice is Cluster) {
+    if (exercise is Cluster) {
       return ClusterWorkoutView(
         key: exKey,
-        exercice: exercice,
+        exercise: exercise,
         progress: progress,
         provider: provider,
         session: session,
       );
     }
-    if (exercice is Circuit) {
+    if (exercise is Circuit) {
       return CircuitWorkoutView(
         key: exKey,
-        exercice: exercice,
+        exercise: exercise,
         progress: progress,
         provider: provider,
         session: session,
       );
     }
-    if (exercice is IsoMax) {
+    if (exercise is IsoMax) {
       return IsoMaxWorkoutView(
         key: exKey,
-        exercice: exercice,
+        exercise: exercise,
         progress: progress,
         provider: provider,
         session: session,
       );
     }
-    if (exercice is IsoPositions) {
+    if (exercise is IsoPositions) {
       return IsoPositionsWorkoutView(
         key: exKey,
-        exercice: exercice,
+        exercise: exercise,
         progress: progress,
         provider: provider,
         session: session,
       );
     }
-    if (exercice is RestBlock) {
+    if (exercise is RestBlock) {
       return RestBlockWorkoutView(
         key: exKey,
-        exercice: exercice,
+        exercise: exercise,
         progress: progress,
         provider: provider,
         session: session,
@@ -616,7 +616,7 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
 }
 
 // ==========================================
-// OUTILS COMMUNS & DESIGN
+// COMMON TOOLS & DESIGN
 // ==========================================
 void _completeSetOrExercise(
   SessionProvider provider,
@@ -628,12 +628,12 @@ void _completeSetOrExercise(
 ) {
   final isLastSet = progress.currentSetIdx >= totalSets;
   final isSessionFinished =
-      (progress.currentExIdx >= session.exercices.length - 1) && isLastSet;
+      (progress.currentExIdx >= session.exercises.length - 1) && isLastSet;
 
   bool isNextRestBlock = false;
   if (!isSessionFinished &&
-      progress.currentExIdx + 1 < session.exercices.length) {
-    isNextRestBlock = session.exercices[progress.currentExIdx + 1] is RestBlock;
+      progress.currentExIdx + 1 < session.exercises.length) {
+    isNextRestBlock = session.exercises[progress.currentExIdx + 1] is RestBlock;
   }
 
   if (isSessionFinished) {
@@ -672,17 +672,17 @@ void _completeSetOrExercise(
 }
 
 // ==========================================
-// VUES SPECIFIQUES AUX EXERCICES
+// EXERCISE SPECIFIC VIEWS
 // ==========================================
 
 class ClassicWorkoutView extends StatefulWidget {
-  final Classic exercice;
+  final Classic exercise;
   final SessionProgress progress;
   final SessionProvider provider;
   final Session session;
   const ClassicWorkoutView({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.progress,
     required this.provider,
     required this.session,
@@ -697,7 +697,7 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
   @override
   void initState() {
     super.initState();
-    _repsController.text = widget.exercice.reps.toString();
+    _repsController.text = widget.exercise.reps.toString();
   }
 
   void _onDone() {
@@ -705,26 +705,26 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
     if (reps == null) return;
     FocusScope.of(context).unfocus();
     final log = WorkoutLogEntry(
-      exerciseName: widget.exercice.name,
+      exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.classic,
       setIndex: widget.progress.currentSetIdx,
       repsCompleted: reps,
-      weightAdded: widget.exercice.weight,
-      restTimeSeconds: widget.exercice.rest,
+      weightAdded: widget.exercise.weight,
+      restTimeSeconds: widget.exercise.rest,
     );
     _completeSetOrExercise(
       widget.provider,
       widget.progress,
       widget.session,
       log,
-      widget.exercice.sets,
-      widget.exercice.rest,
+      widget.exercise.sets,
+      widget.exercise.rest,
     );
-    _repsController.text = widget.exercice.reps.toString();
+    _repsController.text = widget.exercise.reps.toString();
   }
 
   void _skipRest() {
-    final isLastSet = widget.progress.currentSetIdx >= widget.exercice.sets;
+    final isLastSet = widget.progress.currentSetIdx >= widget.exercise.sets;
     widget.provider.updateProgress(
       widget.progress.copyWith(
         isResting: false,
@@ -740,14 +740,14 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final weightLabel = widget.exercice.weight > 0
-        ? " @ ${widget.exercice.weight} kg"
+    final weightLabel = widget.exercise.weight > 0
+        ? " @ ${widget.exercise.weight} kg"
         : "";
 
     return Column(
       children: [
         Text(
-          "SET ${widget.progress.currentSetIdx}/${widget.exercice.sets} • ${widget.exercice.reps} TARGET REPS$weightLabel",
+          "SET ${widget.progress.currentSetIdx}/${widget.exercise.sets} • ${widget.exercise.reps} TARGET REPS$weightLabel",
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
@@ -756,7 +756,7 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
         if (widget.progress.isResting) ...[
           RestTimer(
             endTime: widget.progress.restEndTime,
-            totalSec: widget.exercice.rest,
+            totalSec: widget.exercise.rest,
             onFinish: _skipRest,
           ),
           SizedBox(
@@ -780,18 +780,18 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
           Builder(
             builder: (context) {
               final isLastSet =
-                  widget.progress.currentSetIdx >= widget.exercice.sets;
+                  widget.progress.currentSetIdx >= widget.exercise.sets;
               final nextExIdx = isLastSet
                   ? widget.progress.currentExIdx + 1
                   : widget.progress.currentExIdx;
-              if (nextExIdx < widget.session.exercices.length) {
+              if (nextExIdx < widget.session.exercises.length) {
                 return UpcomingExerciseCard(
-                  exercice: widget.session.exercices[nextExIdx],
+                  exercise: widget.session.exercises[nextExIdx],
                   titleLabel: isLastSet ? "UP NEXT" : "NEXT SET",
                   nextSetIndex: isLastSet
                       ? null
                       : widget.progress.currentSetIdx + 1,
-                  totalSets: isLastSet ? null : widget.exercice.sets,
+                  totalSets: isLastSet ? null : widget.exercise.sets,
                 );
               }
               return const SizedBox.shrink();
@@ -856,13 +856,13 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
 }
 
 class AmrapWorkoutView extends StatefulWidget {
-  final Amrap exercice;
+  final Amrap exercise;
   final SessionProgress progress;
   final SessionProvider provider;
   final Session session;
   const AmrapWorkoutView({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.progress,
     required this.provider,
     required this.session,
@@ -882,7 +882,7 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
       _isStarted = true;
       _endTime =
           DateTime.now().millisecondsSinceEpoch +
-          (widget.exercice.timeCapMinutes * 60 * 1000);
+          (widget.exercise.timeCapMinutes * 60 * 1000);
     });
   }
 
@@ -891,16 +891,16 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
   void _logScore() {
     FocusScope.of(context).unfocus();
     final extra = int.tryParse(_extraRepsCtrl.text) ?? 0;
-    final repsPerRound = widget.exercice.movements.fold(
+    final repsPerRound = widget.exercise.movements.fold(
       0,
       (sum, m) => sum + m.reps,
     );
     final log = WorkoutLogEntry(
-      exerciseName: widget.exercice.name,
+      exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.amrap,
       setIndex: 1,
       repsCompleted: (_roundsCompleted * repsPerRound) + extra,
-      durationSeconds: widget.exercice.timeCapMinutes * 60,
+      durationSeconds: widget.exercise.timeCapMinutes * 60,
     );
     _completeSetOrExercise(
       widget.provider,
@@ -915,7 +915,7 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final repsPerRound = widget.exercice.movements.fold(
+    final repsPerRound = widget.exercise.movements.fold(
       0,
       (sum, m) => sum + m.reps,
     );
@@ -923,7 +923,7 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
     return Column(
       children: [
         Text(
-          "AMRAP • ${widget.exercice.timeCapMinutes} MIN",
+          "AMRAP • ${widget.exercise.timeCapMinutes} MIN",
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
@@ -936,7 +936,7 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
-            children: widget.exercice.movements
+            children: widget.exercise.movements
                 .map(
                   (m) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -987,7 +987,7 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
           RestTimer(
             key: ValueKey(_endTime),
             endTime: _endTime,
-            totalSec: widget.exercice.timeCapMinutes * 60,
+            totalSec: widget.exercise.timeCapMinutes * 60,
             onFinish: _onTimeUp,
             isCountdownStyle: true,
           ),
@@ -1123,13 +1123,13 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
 }
 
 class EmomWorkoutView extends StatefulWidget {
-  final Emom exercice;
+  final Emom exercise;
   final SessionProgress progress;
   final SessionProvider provider;
   final Session session;
   const EmomWorkoutView({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.progress,
     required this.provider,
     required this.session,
@@ -1147,17 +1147,17 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
       _isStarted = true;
       _endTime =
           DateTime.now().millisecondsSinceEpoch +
-          (widget.exercice.everyXSeconds * 1000);
+          (widget.exercise.everyXSeconds * 1000);
     });
   }
 
   void _onRoundFinished() {
     final currentRound = widget.progress.currentSetIdx;
-    if (currentRound < widget.exercice.totalRounds) {
+    if (currentRound < widget.exercise.totalRounds) {
       setState(
         () => _endTime =
             DateTime.now().millisecondsSinceEpoch +
-            (widget.exercice.everyXSeconds * 1000),
+            (widget.exercise.everyXSeconds * 1000),
       );
       widget.provider.updateProgress(
         widget.progress.copyWith(currentSetIdx: currentRound + 1),
@@ -1168,22 +1168,22 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
   }
 
   void _finishExercise() {
-    final repsPerRound = widget.exercice.movements.fold(
+    final repsPerRound = widget.exercise.movements.fold(
       0,
       (sum, m) => sum + m.reps,
     );
     final log = WorkoutLogEntry(
-      exerciseName: widget.exercice.name,
+      exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.emom,
       setIndex: 1,
       repsCompleted: repsPerRound * widget.progress.currentSetIdx,
     );
     _completeSetOrExercise(
       widget.provider,
-      widget.progress.copyWith(currentSetIdx: widget.exercice.totalRounds),
+      widget.progress.copyWith(currentSetIdx: widget.exercise.totalRounds),
       widget.session,
       log,
-      widget.exercice.totalRounds,
+      widget.exercise.totalRounds,
       0,
     );
   }
@@ -1194,7 +1194,7 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
     return Column(
       children: [
         Text(
-          "ROUND ${widget.progress.currentSetIdx}/${widget.exercice.totalRounds} • EVERY ${widget.exercice.everyXSeconds} SEC",
+          "ROUND ${widget.progress.currentSetIdx}/${widget.exercise.totalRounds} • EVERY ${widget.exercise.everyXSeconds} SEC",
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
@@ -1207,7 +1207,7 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
-            children: widget.exercice.movements
+            children: widget.exercise.movements
                 .map(
                   (m) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -1258,7 +1258,7 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
           RestTimer(
             key: ValueKey(_endTime),
             endTime: _endTime,
-            totalSec: widget.exercice.everyXSeconds,
+            totalSec: widget.exercise.everyXSeconds,
             onFinish: _onRoundFinished,
             isCountdownStyle: true,
           ),
@@ -1277,13 +1277,13 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
 }
 
 class RestPauseWorkoutView extends StatefulWidget {
-  final RestPause exercice;
+  final RestPause exercise;
   final SessionProgress progress;
   final SessionProvider provider;
   final Session session;
   const RestPauseWorkoutView({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.progress,
     required this.provider,
     required this.session,
@@ -1304,7 +1304,7 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
       _isLocalResting = true;
       _endTime =
           DateTime.now().millisecondsSinceEpoch +
-          (widget.exercice.restSeconds * 1000);
+          (widget.exercise.restSeconds * 1000);
     });
   }
 
@@ -1325,15 +1325,15 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
     final List<WorkoutLogEntry> newLogs = List.generate(
       finalHistory.length,
       (i) => WorkoutLogEntry(
-        exerciseName: widget.exercice.name,
+        exerciseName: widget.exercise.name,
         exerciseType: ExerciseType.restPause,
         setIndex: i + 1,
         repsCompleted: finalHistory[i],
-        restTimeSeconds: widget.exercice.restSeconds,
+        restTimeSeconds: widget.exercise.restSeconds,
       ),
     );
     final isLastEx =
-        widget.progress.currentExIdx >= widget.session.exercices.length - 1;
+        widget.progress.currentExIdx >= widget.session.exercises.length - 1;
     widget.provider.updateProgress(
       widget.progress.copyWith(
         isFinished: isLastEx,
@@ -1354,7 +1354,7 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
     return Column(
       children: [
         Text(
-          "MICRO-SET $currentSet/${widget.exercice.microSets}",
+          "MICRO-SET $currentSet/${widget.exercise.microSets}",
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
@@ -1363,7 +1363,7 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
           RestTimer(
             key: ValueKey(_endTime),
             endTime: _endTime,
-            totalSec: widget.exercice.restSeconds,
+            totalSec: widget.exercise.restSeconds,
             onFinish: _onRestFinished,
           ),
           SizedBox(
@@ -1386,18 +1386,18 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
           Builder(
             builder: (context) {
               final isLastSet =
-                  widget.progress.currentSetIdx >= widget.exercice.microSets;
+                  widget.progress.currentSetIdx >= widget.exercise.microSets;
               final nextExIdx = isLastSet
                   ? widget.progress.currentExIdx + 1
                   : widget.progress.currentExIdx;
-              if (nextExIdx < widget.session.exercices.length) {
+              if (nextExIdx < widget.session.exercises.length) {
                 return UpcomingExerciseCard(
-                  exercice: widget.session.exercices[nextExIdx],
+                  exercise: widget.session.exercises[nextExIdx],
                   titleLabel: isLastSet ? "UP NEXT" : "NEXT MICRO-SET",
                   nextSetIndex: isLastSet
                       ? null
                       : widget.progress.currentSetIdx + 1,
-                  totalSets: isLastSet ? null : widget.exercice.microSets,
+                  totalSets: isLastSet ? null : widget.exercise.microSets,
                 );
               }
               return const SizedBox.shrink();
@@ -1405,7 +1405,7 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
           ),
         ] else ...[
           const SizedBox(height: 48),
-          if (currentSet < widget.exercice.microSets) ...[
+          if (currentSet < widget.exercise.microSets) ...[
             Text(
               "MAX REPS!",
               style: Theme.of(
@@ -1457,7 +1457,7 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
                   ),
                 ),
                 child: Text(
-                  "START ${widget.exercice.restSeconds}S RECOVERY",
+                  "START ${widget.exercise.restSeconds}S RECOVERY",
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -1520,13 +1520,13 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
 }
 
 class ClusterWorkoutView extends StatefulWidget {
-  final Cluster exercice;
+  final Cluster exercise;
   final SessionProgress progress;
   final SessionProvider provider;
   final Session session;
   const ClusterWorkoutView({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.progress,
     required this.provider,
     required this.session,
@@ -1554,14 +1554,14 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
   }
 
   void _incrementReps() {
-    setState(() => _currentCount += widget.exercice.incrementFactor);
-    if (_currentCount >= widget.exercice.targetReps) _finishExercise();
+    setState(() => _currentCount += widget.exercise.incrementFactor);
+    if (_currentCount >= widget.exercise.targetReps) _finishExercise();
   }
 
   void _finishExercise() {
     _timer?.cancel();
     final log = WorkoutLogEntry(
-      exerciseName: widget.exercice.name,
+      exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.cluster,
       setIndex: 1,
       repsCompleted: _currentCount,
@@ -1586,7 +1586,7 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
     return Column(
       children: [
         Text(
-          "GOAL: ${widget.exercice.targetReps} REPS",
+          "GOAL: ${widget.exercise.targetReps} REPS",
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
@@ -1604,7 +1604,7 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
               ).textTheme.displayLarge?.copyWith(fontSize: 100, height: 1),
             ),
             Text(
-              " / ${widget.exercice.targetReps}",
+              " / ${widget.exercise.targetReps}",
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 color: colorScheme.surfaceContainerHighest,
               ),
@@ -1653,7 +1653,7 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
               ),
               alignment: Alignment.center,
               child: Text(
-                "+${widget.exercice.incrementFactor}",
+                "+${widget.exercise.incrementFactor}",
                 style: TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
@@ -1677,13 +1677,13 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
 }
 
 class CircuitWorkoutView extends StatefulWidget {
-  final Circuit exercice;
+  final Circuit exercise;
   final SessionProgress progress;
   final SessionProvider provider;
   final Session session;
   const CircuitWorkoutView({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.progress,
     required this.provider,
     required this.session,
@@ -1701,7 +1701,7 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
   }
 
   void _initControllers() {
-    _controllers = widget.exercice.movements
+    _controllers = widget.exercise.movements
         .map((m) => TextEditingController(text: m.reps.toString()))
         .toList();
   }
@@ -1732,24 +1732,24 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
       (sum, c) => sum + (int.tryParse(c.text) ?? 0),
     );
     final log = WorkoutLogEntry(
-      exerciseName: widget.exercice.name,
+      exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.circuit,
       setIndex: widget.progress.currentSetIdx,
       repsCompleted: totalReps,
-      restTimeSeconds: widget.exercice.restSeconds,
+      restTimeSeconds: widget.exercise.restSeconds,
     );
     _completeSetOrExercise(
       widget.provider,
       widget.progress,
       widget.session,
       log,
-      widget.exercice.sets,
-      widget.exercice.restSeconds,
+      widget.exercise.sets,
+      widget.exercise.restSeconds,
     );
   }
 
   void _skipRest() {
-    final isLastSet = widget.progress.currentSetIdx >= widget.exercice.sets;
+    final isLastSet = widget.progress.currentSetIdx >= widget.exercise.sets;
     widget.provider.updateProgress(
       widget.progress.copyWith(
         isResting: false,
@@ -1769,7 +1769,7 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
     return Column(
       children: [
         Text(
-          "ROUND ${widget.progress.currentSetIdx}/${widget.exercice.sets}",
+          "ROUND ${widget.progress.currentSetIdx}/${widget.exercise.sets}",
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
@@ -1777,7 +1777,7 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
         if (widget.progress.isResting) ...[
           RestTimer(
             endTime: widget.progress.restEndTime,
-            totalSec: widget.exercice.restSeconds,
+            totalSec: widget.exercise.restSeconds,
             onFinish: _skipRest,
           ),
           SizedBox(
@@ -1800,18 +1800,18 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
           Builder(
             builder: (context) {
               final isLastSet =
-                  widget.progress.currentSetIdx >= widget.exercice.sets;
+                  widget.progress.currentSetIdx >= widget.exercise.sets;
               final nextExIdx = isLastSet
                   ? widget.progress.currentExIdx + 1
                   : widget.progress.currentExIdx;
-              if (nextExIdx < widget.session.exercices.length) {
+              if (nextExIdx < widget.session.exercises.length) {
                 return UpcomingExerciseCard(
-                  exercice: widget.session.exercices[nextExIdx],
+                  exercise: widget.session.exercises[nextExIdx],
                   titleLabel: isLastSet ? "UP NEXT" : "NEXT ROUND",
                   nextSetIndex: isLastSet
                       ? null
                       : widget.progress.currentSetIdx + 1,
-                  totalSets: isLastSet ? null : widget.exercice.sets,
+                  totalSets: isLastSet ? null : widget.exercise.sets,
                 );
               }
               return const SizedBox.shrink();
@@ -1819,8 +1819,8 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
           ),
         ] else ...[
           const SizedBox(height: 32),
-          ...List.generate(widget.exercice.movements.length, (index) {
-            final mov = widget.exercice.movements[index];
+          ...List.generate(widget.exercise.movements.length, (index) {
+            final mov = widget.exercise.movements[index];
             return Container(
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(20),
@@ -1887,13 +1887,13 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
 }
 
 class IsoMaxWorkoutView extends StatefulWidget {
-  final IsoMax exercice;
+  final IsoMax exercise;
   final SessionProgress progress;
   final SessionProvider provider;
   final Session session;
   const IsoMaxWorkoutView({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.progress,
     required this.provider,
     required this.session,
@@ -1941,20 +1941,20 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
   void _stopAndSave() {
     _timer?.cancel();
     final log = WorkoutLogEntry(
-      exerciseName: widget.exercice.name,
+      exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.isoMax,
       setIndex: widget.progress.currentSetIdx,
       repsCompleted: (_secondsElapsed - 3).clamp(0, 999),
-      weightAdded: widget.exercice.weight,
-      restTimeSeconds: widget.exercice.restSeconds,
+      weightAdded: widget.exercise.weight,
+      restTimeSeconds: widget.exercise.restSeconds,
     );
     _completeSetOrExercise(
       widget.provider,
       widget.progress,
       widget.session,
       log,
-      widget.exercice.sets,
-      widget.exercice.restSeconds,
+      widget.exercise.sets,
+      widget.exercise.restSeconds,
     );
     if (mounted) {
       setState(() {
@@ -1965,7 +1965,7 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
   }
 
   void _skipRest() {
-    final isLastSet = widget.progress.currentSetIdx >= widget.exercice.sets;
+    final isLastSet = widget.progress.currentSetIdx >= widget.exercise.sets;
     widget.provider.updateProgress(
       widget.progress.copyWith(
         isResting: false,
@@ -1986,7 +1986,7 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
         children: [
           RestTimer(
             endTime: widget.progress.restEndTime,
-            totalSec: widget.exercice.restSeconds,
+            totalSec: widget.exercise.restSeconds,
             onFinish: _skipRest,
           ),
           SizedBox(
@@ -2009,18 +2009,18 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
           Builder(
             builder: (context) {
               final isLastSet =
-                  widget.progress.currentSetIdx >= widget.exercice.sets;
+                  widget.progress.currentSetIdx >= widget.exercise.sets;
               final nextExIdx = isLastSet
                   ? widget.progress.currentExIdx + 1
                   : widget.progress.currentExIdx;
-              if (nextExIdx < widget.session.exercices.length) {
+              if (nextExIdx < widget.session.exercises.length) {
                 return UpcomingExerciseCard(
-                  exercice: widget.session.exercices[nextExIdx],
+                  exercise: widget.session.exercises[nextExIdx],
                   titleLabel: isLastSet ? "UP NEXT" : "NEXT SET",
                   nextSetIndex: isLastSet
                       ? null
                       : widget.progress.currentSetIdx + 1,
-                  totalSets: isLastSet ? null : widget.exercice.sets,
+                  totalSets: isLastSet ? null : widget.exercise.sets,
                 );
               }
               return const SizedBox.shrink();
@@ -2032,7 +2032,7 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
     return Column(
       children: [
         Text(
-          "SET ${widget.progress.currentSetIdx}/${widget.exercice.sets} • ISO MAX",
+          "SET ${widget.progress.currentSetIdx}/${widget.exercise.sets} • ISO MAX",
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
@@ -2104,13 +2104,13 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
 }
 
 class IsoPositionsWorkoutView extends StatefulWidget {
-  final IsoPositions exercice;
+  final IsoPositions exercise;
   final SessionProgress progress;
   final SessionProvider provider;
   final Session session;
   const IsoPositionsWorkoutView({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.progress,
     required this.provider,
     required this.session,
@@ -2131,12 +2131,12 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
   }
 
   void _startSequence() {
-    if (widget.exercice.movements.isEmpty) return;
+    if (widget.exercise.movements.isEmpty) return;
     setState(() {
       _phase = "PREP";
       _prepTime = 5;
       _currentHoldIndex = 0;
-      _currentHoldTime = widget.exercice.movements[0].reps;
+      _currentHoldTime = widget.exercise.movements[0].reps;
     });
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_phase == "PREP") {
@@ -2149,11 +2149,11 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
         if (_currentHoldTime > 1) {
           setState(() => _currentHoldTime--);
         } else {
-          if (_currentHoldIndex < widget.exercice.movements.length - 1) {
+          if (_currentHoldIndex < widget.exercise.movements.length - 1) {
             setState(() {
               _currentHoldIndex++;
               _currentHoldTime =
-                  widget.exercice.movements[_currentHoldIndex].reps;
+                  widget.exercise.movements[_currentHoldIndex].reps;
             });
           } else {
             _stopAndSave();
@@ -2166,28 +2166,28 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
   void _stopAndSave() {
     _timer?.cancel();
     final log = WorkoutLogEntry(
-      exerciseName: widget.exercice.name,
+      exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.isoPositions,
       setIndex: widget.progress.currentSetIdx,
-      repsCompleted: widget.exercice.movements.fold(
+      repsCompleted: widget.exercise.movements.fold(
         0,
         (sum, m) => sum + m.reps,
       ),
-      restTimeSeconds: widget.exercice.restSeconds,
+      restTimeSeconds: widget.exercise.restSeconds,
     );
     _completeSetOrExercise(
       widget.provider,
       widget.progress,
       widget.session,
       log,
-      widget.exercice.sets,
-      widget.exercice.restSeconds,
+      widget.exercise.sets,
+      widget.exercise.restSeconds,
     );
     if (mounted) setState(() => _phase = "IDLE");
   }
 
   void _skipRest() {
-    final isLastSet = widget.progress.currentSetIdx >= widget.exercice.sets;
+    final isLastSet = widget.progress.currentSetIdx >= widget.exercise.sets;
     widget.provider.updateProgress(
       widget.progress.copyWith(
         isResting: false,
@@ -2208,7 +2208,7 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
         children: [
           RestTimer(
             endTime: widget.progress.restEndTime,
-            totalSec: widget.exercice.restSeconds,
+            totalSec: widget.exercise.restSeconds,
             onFinish: _skipRest,
           ),
           SizedBox(
@@ -2231,18 +2231,18 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
           Builder(
             builder: (context) {
               final isLastSet =
-                  widget.progress.currentSetIdx >= widget.exercice.sets;
+                  widget.progress.currentSetIdx >= widget.exercise.sets;
               final nextExIdx = isLastSet
                   ? widget.progress.currentExIdx + 1
                   : widget.progress.currentExIdx;
-              if (nextExIdx < widget.session.exercices.length) {
+              if (nextExIdx < widget.session.exercises.length) {
                 return UpcomingExerciseCard(
-                  exercice: widget.session.exercices[nextExIdx],
+                  exercise: widget.session.exercises[nextExIdx],
                   titleLabel: isLastSet ? "UP NEXT" : "NEXT SET",
                   nextSetIndex: isLastSet
                       ? null
                       : widget.progress.currentSetIdx + 1,
-                  totalSets: isLastSet ? null : widget.exercice.sets,
+                  totalSets: isLastSet ? null : widget.exercise.sets,
                 );
               }
               return const SizedBox.shrink();
@@ -2255,7 +2255,7 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
     return Column(
       children: [
         Text(
-          "SET ${widget.progress.currentSetIdx}/${widget.exercice.sets} • ISO POSITIONS",
+          "SET ${widget.progress.currentSetIdx}/${widget.exercise.sets} • ISO POSITIONS",
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
@@ -2269,7 +2269,7 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
-              children: widget.exercice.movements
+              children: widget.exercise.movements
                   .map(
                     (m) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -2326,9 +2326,9 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
             ),
           ),
         ] else if (_phase == "RUNNING") ...[
-          ...List.generate(widget.exercice.movements.length, (index) {
+          ...List.generate(widget.exercise.movements.length, (index) {
             final isActive = index == _currentHoldIndex;
-            final mov = widget.exercice.movements[index];
+            final mov = widget.exercise.movements[index];
             if (isActive) {
               return Container(
                 margin: const EdgeInsets.symmetric(vertical: 8),
@@ -2372,13 +2372,13 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
 }
 
 class RestBlockWorkoutView extends StatefulWidget {
-  final RestBlock exercice;
+  final RestBlock exercise;
   final SessionProgress progress;
   final SessionProvider provider;
   final Session session;
   const RestBlockWorkoutView({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.progress,
     required this.provider,
     required this.session,
@@ -2398,7 +2398,7 @@ class _RestBlockWorkoutViewState extends State<RestBlockWorkoutView> {
             isResting: true,
             restEndTime:
                 DateTime.now().millisecondsSinceEpoch +
-                (widget.exercice.restSeconds * 1000),
+                (widget.exercise.restSeconds * 1000),
           ),
         );
       });
@@ -2407,7 +2407,7 @@ class _RestBlockWorkoutViewState extends State<RestBlockWorkoutView> {
 
   void _skipRest() {
     final isSessionFinished =
-        (widget.progress.currentExIdx >= widget.session.exercices.length - 1);
+        (widget.progress.currentExIdx >= widget.session.exercises.length - 1);
     widget.provider.updateProgress(
       widget.progress.copyWith(
         isFinished: isSessionFinished,
@@ -2432,7 +2432,7 @@ class _RestBlockWorkoutViewState extends State<RestBlockWorkoutView> {
         ),
         RestTimer(
           endTime: widget.progress.restEndTime,
-          totalSec: widget.exercice.restSeconds,
+          totalSec: widget.exercise.restSeconds,
           onFinish: _skipRest,
         ),
         SizedBox(
@@ -2455,9 +2455,9 @@ class _RestBlockWorkoutViewState extends State<RestBlockWorkoutView> {
         Builder(
           builder: (context) {
             final nextExIdx = widget.progress.currentExIdx + 1;
-            if (nextExIdx < widget.session.exercices.length) {
+            if (nextExIdx < widget.session.exercises.length) {
               return UpcomingExerciseCard(
-                exercice: widget.session.exercices[nextExIdx],
+                exercise: widget.session.exercises[nextExIdx],
                 titleLabel: "UP NEXT",
               );
             }
@@ -2469,7 +2469,7 @@ class _RestBlockWorkoutViewState extends State<RestBlockWorkoutView> {
   }
 }
 
-// ==== Composants UI réutilisés ====
+// ==== Reusable UI Components ====
 
 class RestTimer extends StatefulWidget {
   final int endTime, totalSec;
@@ -2566,28 +2566,28 @@ class _RestTimerState extends State<RestTimer> {
 }
 
 class UpcomingExerciseCard extends StatelessWidget {
-  final Exercice exercice;
+  final Exercise exercise;
   final String titleLabel;
   final int? nextSetIndex, totalSets;
 
   const UpcomingExerciseCard({
     super.key,
-    required this.exercice,
+    required this.exercise,
     required this.titleLabel,
     this.nextSetIndex,
     this.totalSets,
   });
 
   String _getSummary() {
-    final ex = exercice;
+    final ex = exercise;
     if (nextSetIndex != null && totalSets != null) {
-      // Suite du même exercice
-      if (ex is Classic) return "${ex.reps} reps @ ${ex.weight}kg";
+      // Continuation of the same exercise
+      if (ex is Classic) return "Set $nextSetIndex of $totalSets";
       if (ex is IsoMax) return "Hold @ ${ex.weight}kg";
       if (ex is Circuit) return "Circuit round";
       return "Next set";
     } else {
-      // Début d'un nouvel exercice
+      // Start of a new exercise
       if (ex is Classic) return "${ex.sets}x${ex.reps} @ ${ex.weight}kg";
       if (ex is Amrap) return "AMRAP - ${ex.timeCapMinutes} MIN";
       if (ex is Emom) return "EMOM - ${ex.totalRounds} ROUNDS";
@@ -2625,7 +2625,7 @@ class UpcomingExerciseCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            exercice.name.toUpperCase(),
+            exercise.name.toUpperCase(),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           if (summary.isNotEmpty) ...[

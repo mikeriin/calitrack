@@ -56,3 +56,42 @@ fix/ fonctionnalités:
 	le bouton "+" et les conditions ne doivent pas être rendus si le clavier de saisie est affiché;
 	sur les cartes d'exercices enlever l'icon avec des petits points sur la gauche de la carte, mettre l'icon de l'haltère comme celui de assets_screen pour les exercices et un autre logo cohérent pour le rest-block;
 	quand on appuie sur "+" pour la sélection de l'exo à ajouter, mettre au dessus de chaque exo le type d'exo que c'est (ex: CLASSIC pour un exo de type "classic");
+
+
+
+fix/ fonctionnalités:
+	ajouter la possibilité d'exporter et d'importer des séances;
+
+
+fix/ fonctionnalités:
+- dans settings:
+	ajouter un chemin vers un dossier de référence dans lequel l'application ira directement pour importer et exporter des données;
+	activer la possibilité de lier un compte garmin, quand une séance se lance l'application enregistre les données de la montre le temps de la séance puis fait un résumé, contruit des stats, ajoute les stats dans les logs puis libère la mémoire en supprimant les données garmin enregistrés pendant la séance;
+	activer les notifications journalières quand il y a une séance de prévue pour l'annoncer avec un résumé de la dite séance;
+	possibilité de désactiver la mise en veille automatique quand on est sur l'écran de la session du jour et que la séance est en cours;
+- pour assets:
+	ne pas trier par ordre alphabétique ou par ordre de modification mais par ordre de création;
+	ajouter un filtre pour chaque type d'exercice (CLASSIC, MAX-HOLD, etc);
+- pour sessions:
+	enlever le bouton qui afficher un menu pour modifier, exporter ou supprimer, quand on fait un appui long ça déroule la carte comme pour les carte de session details avec le même effet avec les champs modifiables et le bouton icon exporter en bas, les changements sont enregistrés quand on clique de nouveau sur la carte pour qu'elle se réduise, mettre un icon supprimer à la place;
+	quand on exporte une session ça ouvre directement le dossier référencé dans settings, le dossier Download du téléphone le cas écheant;
+	quand on importe ça ouvre directement le dossier référencé dans settings, le dossier Download du téléphone le cas écheant;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
