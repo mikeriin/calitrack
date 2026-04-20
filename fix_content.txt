@@ -1,0 +1,58 @@
+fix/ fonctionnalités:
+- dans assets on créé les exercices et les conditions d'évolutions:
+	le nom de l'exercice, le nom de chaque exercice par sets pour les exercices qui doivent contenir plusieurs sets (AMRAP, EMOM, CIRCUIT et MULTI-HOLD);
+	pour les CONDITIONS ce sont des cartes comme les exercice qu'on peut créer avec un nom, et le type de condition;
+	je te laisse choisir la façon dont tu veux gérer les champs de conditions en fonction de ce que dit la science sur la progression en sport et les exercices présents;
+	possibilité de choisir une image pour les icons des exercices, par défaut c'est un icon altère;
+- dans session details on assemble des assets ensemble, les seuls valeurs à éditer sont: 
+	le nombre de reps, le poids, le nombre de sets et le temps de repos entre les sets pour le CLASSIC;
+	le nombre de reps et le poids par sets pour l'ARMRAP;
+	le temps d'intervalle, le nombre de reps et le poids par sets, et le nombre de set pour l'EMOM;
+	le nombre de sets et le temps entre les sets pour le REST-PAUSE;
+	l'objectif de reps, le poids, et la valeur d'incrémentation pour le CLUSTER;
+	le nombre de reps et le poids par sets, le nombre de sets et le temps de repos entre les sets pour le CIRCUIT;
+	le poids, le temps de maintient de la position, le nombre de sets et le repos entre les sets pour MAX-HOLD;
+	le poids et le temps de maintient de la position par set, le nombre de sets et le repos entre sets pour MULTI-HOLD;
+	le temps pour REST-BLOCK;
+	le tout dans un menu déroulant par carte d'exercice, pas de vieux bouton pour afficher une boite de dialogue;
+	le bouton "+" ouvre une boite de dialogue avec l'entièreté des assets exercices et conditions d'évolutions sou forme de menu home d'application avec l'icon et le nom en dessous;
+	on peut associer à chaque exercice une condition d'évolution à la manière d'un drague and drop, on prend la condition et on la drop sur l'exercice, l'affichage s'adapte;
+	tout en bas de la séance créée on ajoute un bouton clear qui enlève les conditions qui ne sont pas associées à un exercice, qui merge les chrono qui sont l'un après l'autre et qui supprime les chronos qui sont en fin de séance s'il n'y a pas d'exercice après;
+
+
+fix/ fonctionnalités:
+- dans session details:
+	pas besoin d'afficher les conditions dans le bouton "+", elles sont déjà en haut;
+	ne pas clean la séance si le bouton "clean session" n'a pas été pressé;
+	pas de valeur par défaut pour les exercices;
+	pas besoin d'appuyer sur le bouton "save" pour que l'exercice prenne en compte les valeurs saisies par l'utilisateur;
+	possibilité d'enlever la condition de l'exercice en double-cliquant dessus;
+	afficher les conditions en bas aligné au bouton "+", possibilité de scroll de gauche à droite les conditions s'il y en à trop et que c'est impossible de les afficher à l'écran;
+	le bouton "set as next workout" est trop grand et prend trop de place, mettre un bouton icon play aligné au titre de la séance;
+	le titre de la séance ne doit plus être fixe quand on défile vers le bas, de même pour le bouton "clean session", il ne reste pas fixe;
+	améliorer l'ergonomie;
+- dans assets:
+	le conditions prennent aussi un paramètre nombre de sets, l'idée est que si le nombre de sets et le nombre de reps de la condition est le même que celui de l'exercice alors on incrémente le poids ou le nombre de reps ou les deux en fonction de la condition;
+- je veux du prêt à l'emploie;
+
+
+fix/ fonctionnalités:
+- pour tout l'ui, faire une refonte totale, moderne épuré sans trop prendre d'espace pour rien non plus, professionnelle, il faut une empreinte graphique reconnaissable. je veux du prêt à l'emploi
+
+fix/ fonctionnalités:
+- pour les cartes de résumés de session_of_the_day_screen:
+	si on est en plein exercice alors afficher le prochain set, ou le contenu de ce qu'on a à faire après le repos inter-exercice;
+	si on est en repos alors afficher le contenu du prochain exercice;
+- pour les exercices et les condition de assets_screen:
+	ne plus afficher de fenêtre qui pop de nul part, faire comme session_details_screen et permettre de dérouler la carte de l'exo ou la condition pour le/la configurer, plus de bouton save ou cancel puisque la sauvegarde se fait quand on réduit la carte;
+- pour le bouton "+" et les conditions collés en bas de l'écran:
+	si le clavier de saisie est affiché alors ne pas les afficher;
+- je veux le code complet de chaque fichier corrigé prêt à l'emploie;
+
+
+fix/ fonctionnalités:
+	afficher l'effet de surbrillance des cartes identique à assets_screen quand elles sont déroulés dans tracker_screen et session_details_screen;
+- dans sessions_details_screen:
+	le bouton "+" et les conditions ne doivent pas être rendus si le clavier de saisie est affiché;
+	sur les cartes d'exercices enlever l'icon avec des petits points sur la gauche de la carte, mettre l'icon de l'haltère comme celui de assets_screen pour les exercices et un autre logo cohérent pour le rest-block;
+	quand on appuie sur "+" pour la sélection de l'exo à ajouter, mettre au dessus de chaque exo le type d'exo que c'est (ex: CLASSIC pour un exo de type "classic");

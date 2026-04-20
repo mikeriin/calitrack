@@ -1,0 +1,233 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/workout_models.dart';
+
+// ==========================================
+// MODELES DE PROGRESSION EN COURS
+// ==========================================
+
+class WorkoutLogEntry {
+  final String exerciseName;
+  final ExerciseType exerciseType;
+  final int setIndex;
+  final int repsCompleted;
+  final double weightAdded;
+  final int restTimeSeconds;
+  final int durationSeconds;
+
+  WorkoutLogEntry({
+    required this.exerciseName,
+    required this.exerciseType,
+    required this.setIndex,
+    required this.repsCompleted,
+    this.weightAdded = 0.0,
+    this.restTimeSeconds = 0,
+    this.durationSeconds = 0,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'exerciseName': exerciseName,
+    'exerciseType': exerciseType.name,
+    'setIndex': setIndex,
+    'repsCompleted': repsCompleted,
+    'weightAdded': weightAdded,
+    'restTimeSeconds': restTimeSeconds,
+    'durationSeconds': durationSeconds,
+  };
+
+  factory WorkoutLogEntry.fromMap(Map<String, dynamic> map) {
+    return WorkoutLogEntry(
+      exerciseName: map['exerciseName'],
+      exerciseType: ExerciseType.values.firstWhere(
+        (e) => e.name == map['exerciseType'],
+      ),
+      setIndex: map['setIndex'],
+      repsCompleted: map['repsCompleted'],
+      weightAdded: map['weightAdded']?.toDouble() ?? 0.0,
+      restTimeSeconds: map['restTimeSeconds'] ?? 0,
+      durationSeconds: map['durationSeconds'] ?? 0,
+    );
+  }
+}
+
+class SessionProgress {
+  final String sessionId;
+  final int currentExIdx;
+  final int currentSetIdx;
+  final bool isResting;
+  final int restEndTime;
+  final int startTime;
+  final int endTime;
+  final bool isFinished;
+  final bool isSaved;
+  final List<String> stats;
+  final List<WorkoutLogEntry> logs;
+
+  SessionProgress({
+    this.sessionId = "",
+    this.currentExIdx = 0,
+    this.currentSetIdx = 1,
+    this.isResting = false,
+    this.restEndTime = 0,
+    this.startTime = 0,
+    this.endTime = 0,
+    this.isFinished = false,
+    this.isSaved = false,
+    this.stats = const [],
+    this.logs = const [],
+  });
+
+  SessionProgress copyWith({
+    String? sessionId,
+    int? currentExIdx,
+    int? currentSetIdx,
+    bool? isResting,
+    int? restEndTime,
+    int? startTime,
+    int? endTime,
+    bool? isFinished,
+    bool? isSaved,
+    List<String>? stats,
+    List<WorkoutLogEntry>? logs,
+  }) {
+    return SessionProgress(
+      sessionId: sessionId ?? this.sessionId,
+      currentExIdx: currentExIdx ?? this.currentExIdx,
+      currentSetIdx: currentSetIdx ?? this.currentSetIdx,
+      isResting: isResting ?? this.isResting,
+      restEndTime: restEndTime ?? this.restEndTime,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      isFinished: isFinished ?? this.isFinished,
+      isSaved: isSaved ?? this.isSaved,
+      stats: stats ?? this.stats,
+      logs: logs ?? this.logs,
+    );
+  }
+}
+
+// ==========================================
+// REPOSITORY (Equivalent de DataStore)
+// ==========================================
+
+class ProgressRepository {
+  static const _sessionIdKey = 'session_id';
+  static const _exIdxKey = 'current_ex_idx';
+  static const _setIdxKey = 'current_set_idx';
+  static const _isRestingKey = 'is_resting';
+  static const _restEndTimeKey = 'rest_end_time';
+  static const _startTimeKey = 'session_start_time';
+  static const _endTimeKey = 'session_end_time';
+  static const _isFinishedKey = 'is_finished';
+  static const _isSavedKey = 'is_saved';
+  static const _statsKey = 'stats_json';
+  static const _logsKey = 'logs_json';
+  static const _isDarkModeKey = 'is_dark_mode';
+
+  final _progressController = StreamController<SessionProgress>.broadcast();
+  final _darkModeController = StreamController<bool>.broadcast();
+
+  Stream<SessionProgress> get progressFlow => _progressController.stream;
+  Stream<bool> get isDarkModeFlow => _darkModeController.stream;
+
+  bool _isDarkMode = true;
+  bool get isDarkMode => _isDarkMode;
+
+  Future<void> init() async {
+    _isDarkMode = await getIsDarkMode();
+    _darkModeController.add(await getIsDarkMode());
+    _progressController.add(await _readProgressFromPrefs());
+  }
+
+  // --- LECTURE (Interne) ---
+  Future<SessionProgress> _readProgressFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    List<String> statsList = [];
+    final statsJson = prefs.getString(_statsKey);
+    if (statsJson != null) {
+      statsList = List<String>.from(jsonDecode(statsJson));
+    }
+
+    List<WorkoutLogEntry> logsList = [];
+    final logsJson = prefs.getString(_logsKey);
+    if (logsJson != null) {
+      final decoded = jsonDecode(logsJson) as List;
+      logsList = decoded.map((e) => WorkoutLogEntry.fromMap(e)).toList();
+    }
+
+    return SessionProgress(
+      sessionId: prefs.getString(_sessionIdKey) ?? "",
+      currentExIdx: prefs.getInt(_exIdxKey) ?? 0,
+      currentSetIdx: prefs.getInt(_setIdxKey) ?? 1,
+      isResting: prefs.getBool(_isRestingKey) ?? false,
+      restEndTime: prefs.getInt(_restEndTimeKey) ?? 0,
+      startTime: prefs.getInt(_startTimeKey) ?? 0,
+      endTime: prefs.getInt(_endTimeKey) ?? 0,
+      isFinished: prefs.getBool(_isFinishedKey) ?? false,
+      isSaved: prefs.getBool(_isSavedKey) ?? false,
+      stats: statsList,
+      logs: logsList,
+    );
+  }
+
+  // --- ECRITURE ---
+  Future<void> saveProgress(SessionProgress progress) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(_sessionIdKey, progress.sessionId);
+    await prefs.setInt(_exIdxKey, progress.currentExIdx);
+    await prefs.setInt(_setIdxKey, progress.currentSetIdx);
+    await prefs.setBool(_isRestingKey, progress.isResting);
+    await prefs.setInt(_restEndTimeKey, progress.restEndTime);
+    await prefs.setInt(_startTimeKey, progress.startTime);
+    await prefs.setInt(_endTimeKey, progress.endTime);
+    await prefs.setBool(_isFinishedKey, progress.isFinished);
+    await prefs.setBool(_isSavedKey, progress.isSaved);
+    await prefs.setString(_statsKey, jsonEncode(progress.stats));
+    await prefs.setString(
+      _logsKey,
+      jsonEncode(progress.logs.map((e) => e.toMap()).toList()),
+    );
+
+    _progressController.add(progress);
+  }
+
+  Future<void> clearProgress() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final keysToRemove = [
+      _sessionIdKey,
+      _exIdxKey,
+      _setIdxKey,
+      _isRestingKey,
+      _restEndTimeKey,
+      _startTimeKey,
+      _endTimeKey,
+      _isFinishedKey,
+      _isSavedKey,
+      _statsKey,
+      _logsKey,
+    ];
+
+    for (String key in keysToRemove) {
+      await prefs.remove(key);
+    }
+
+    _progressController.add(SessionProgress());
+  }
+
+  // --- THEME (DARK MODE) ---
+  Future<bool> getIsDarkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_isDarkModeKey) ?? true;
+  }
+
+  Future<void> setDarkMode(bool isDark) async {
+    _isDarkMode = isDark;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_isDarkModeKey, isDark);
+    _darkModeController.add(isDark);
+  }
+}
