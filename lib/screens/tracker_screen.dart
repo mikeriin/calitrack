@@ -294,6 +294,9 @@ class _ConsistencyHeatmap extends StatelessWidget {
                 final timeFormatted = DateFormat(
                   "HH:mm",
                 ).format(DateTime.fromMillisecondsSinceEpoch(session.date));
+                // Utilisation du formattedDuration ici !
+                final durationStr = session.formattedDuration;
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -304,7 +307,7 @@ class _ConsistencyHeatmap extends StatelessWidget {
                         height: 24,
                       ),
                     Text(
-                      "${session.title.toUpperCase()} - $timeFormatted",
+                      "${session.title.toUpperCase()} - $timeFormatted ($durationStr)",
                       style: const TextStyle(fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
@@ -377,7 +380,7 @@ class _ExerciseExpandableCardState extends State<_ExerciseExpandableCard> {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        // SURBRILLANCE identique à assets_screen
+        // SURBRILLANCE
         border: Border.all(
           color: _expanded
               ? colorScheme.primary

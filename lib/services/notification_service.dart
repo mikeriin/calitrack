@@ -2,6 +2,7 @@
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     hide Day;
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../models/workout_models.dart';
@@ -16,8 +17,18 @@ class NotificationService {
 
   Future<void> init() async {
     tz.initializeTimeZones();
+
+    try {
+      final tzInfo = await FlutterTimezone.getLocalTimezone();
+      final String timeZoneName = tzInfo.identifier;
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+    } catch (e) {
+      // Fallback par défaut si introuvable
+      tz.setLocalLocation(tz.getLocation('Europe/Paris'));
+    }
+
     const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('ic_notif');
     const DarwinInitializationSettings iosSettings =
         DarwinInitializationSettings(
           requestAlertPermission: true,
@@ -29,42 +40,37 @@ class NotificationService {
       iOS: iosSettings,
     );
 
-    // FIX: "settings:" is now a required named parameter
     await _notificationsPlugin.initialize(settings: initSettings);
   }
 
   Future<void> scheduleWorkoutNotifications(List<Session> sessions) async {
     await _notificationsPlugin.cancelAll(); // Reset existing notifications
 
-    for (var session in sessions) {
+    for (int i = 0; i < sessions.length; i++) {
+      var session = sessions[i];
       final int weekday = _dayToWeekday(session.day);
 
-      // Build a quick summary (e.g., "4 exercises scheduled")
       String resume =
           "${session.exercises.length} exercises scheduled today. Ready to give it your all?";
 
-      // FIX: All zonedSchedule parameters are now named
       await _notificationsPlugin.zonedSchedule(
-        id: session.id.hashCode, // Unique ID based on the session
+        id: i,
         title: "It's time for your session: ${session.title}!",
         body: resume,
-        scheduledDate: _nextInstanceOfTime(
-          weekday,
-          6,
-          0,
-        ), // At 06:00 AM on the corresponding day
+        scheduledDate: _nextInstanceOfTime(weekday, 10, 12),
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
-            'workout_channel',
+            'workout_channel', // <-- LE CHANGEMENT MAGIQUE EST ICI
             'Workout Notifications',
             channelDescription: 'Daily reminders for sessions',
-            importance: Importance.high,
-            priority: Priority.high,
+            importance: Importance.max, // On force au max
+            priority: Priority.max, // On force au max
+            playSound: true, // On force le son
+            enableVibration: true, // On force le vibreur
           ),
           iOS: DarwinNotificationDetails(),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        // FIX: uiLocalNotificationDateInterpretation was removed from the package
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
     }

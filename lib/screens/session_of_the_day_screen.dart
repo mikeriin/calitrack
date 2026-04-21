@@ -9,6 +9,8 @@ import '../models/workout_models.dart';
 import '../services/progress_repository.dart';
 import '../viewmodels/session_provider.dart';
 import '../viewmodels/tracker_provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import '../viewmodels/leveling_provider.dart';
 
 class SessionOfTheDayScreen extends StatefulWidget {
   const SessionOfTheDayScreen({super.key});
@@ -115,6 +117,14 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
         _hasLoadedHistory = true;
       }
 
+      if (progress.startTime > 0 &&
+          !progress.isFinished &&
+          provider.keepAwake) {
+        WakelockPlus.enable();
+      } else {
+        WakelockPlus.disable();
+      }
+
       if (progress.isFinished &&
           activeSession != null &&
           !progress.isSaved &&
@@ -122,17 +132,53 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
         _isSaving = true;
         final duration = progress.endTime - progress.startTime;
 
-        provider
-            .saveCompletedWorkout(activeSession, duration, progress.logs)
-            .then((_) {
-              trackerProvider.loadHistory().then((_) {
-                if (mounted) {
-                  setState(() {
-                    _isSaving = false;
-                  });
-                }
+        final levelingProvider = context.read<LevelingProvider>();
+
+        provider.saveCompletedWorkout(activeSession, duration, progress.logs).then((
+          _,
+        ) async {
+          // Ajout du async ici
+
+          // On appelle le provider avec la durée et on récupère l'XP
+          final gainedXp = await levelingProvider.processWorkoutLogs(
+            progress.logs,
+            provider,
+            duration,
+          );
+
+          if (!context.mounted) return;
+
+          if (duration < 1800000) {
+            // Moins de 30 minutes
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  "Workout too short (< 30 min). No XP earned this time!",
+                ),
+                backgroundColor: colorScheme.error,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          } else if (gainedXp > 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  "🎉 Congrats! You've gained +${gainedXp.toInt()} XP!",
+                ),
+                backgroundColor: Colors.amber.shade700,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+
+          trackerProvider.loadHistory().then((_) {
+            if (mounted) {
+              setState(() {
+                _isSaving = false;
               });
-            });
+            }
+          });
+        });
       }
     });
 

@@ -1,12 +1,102 @@
 // lib/screens/assets_screen.dart
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:path_provider/path_provider.dart';
+import '../main.dart'; // Pour accéder à progressRepository
 import '../models/workout_models.dart';
 import '../viewmodels/asset_provider.dart';
 
 class AssetsScreen extends StatelessWidget {
   const AssetsScreen({super.key});
+
+  Future<void> _handleImportAssets(BuildContext context) async {
+    try {
+      final customFolder = progressRepository.dataFolder;
+      String? defaultPath;
+      if (customFolder != null && customFolder.isNotEmpty) {
+        defaultPath = customFolder;
+      } else if (Platform.isAndroid) {
+        final dir = await getDownloadsDirectory();
+        defaultPath = dir?.path;
+      }
+
+      const XTypeGroup jsonType = XTypeGroup(
+        label: 'JSON Files',
+        extensions: <String>['json'],
+      );
+      final XFile? file = await openFile(
+        acceptedTypeGroups: [jsonType],
+        initialDirectory: defaultPath,
+      );
+
+      if (file != null) {
+        final jsonString = await file.readAsString();
+        if (!context.mounted) return;
+        await context.read<AssetProvider>().importAssetsFromJson(jsonString);
+
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Assets imported successfully!"),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Import failed. Invalid file format."),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleExportAssets(BuildContext context) async {
+    try {
+      final provider = context.read<AssetProvider>();
+      final jsonStr = provider.exportAssetsToJson();
+      final folderPath = progressRepository.dataFolder;
+      String? targetDir = folderPath;
+
+      if (targetDir == null || targetDir.isEmpty) {
+        if (Platform.isAndroid) {
+          targetDir = (await getDownloadsDirectory())?.path;
+        } else {
+          targetDir = (await getApplicationDocumentsDirectory()).path;
+        }
+      }
+
+      if (targetDir != null) {
+        final fileName = "calitrack_assets_export.json";
+        final file = File('$targetDir/$fileName');
+        await file.writeAsString(jsonStr);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Saved to $targetDir/$fileName'),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Export Error: $e");
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Export failed.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +109,24 @@ class AssetsScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           elevation: 0,
-          toolbarHeight: 0,
+          title: const Text(
+            "ASSETS",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+          ),
+          centerTitle: false,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.file_download_outlined),
+              tooltip: "Import Assets (.json)",
+              onPressed: () => _handleImportAssets(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.ios_share_rounded),
+              tooltip: "Export All Assets (.json)",
+              onPressed: () => _handleExportAssets(context),
+            ),
+            const SizedBox(width: 8),
+          ],
           bottom: TabBar(
             labelColor: colorScheme.primary,
             unselectedLabelColor: colorScheme.onSurfaceVariant,

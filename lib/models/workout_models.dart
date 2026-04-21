@@ -688,6 +688,19 @@ class HistorySession {
     required this.isCompleted,
   }) : id = id ?? uuid.v4();
 
+  // Helper pour afficher la durée au format "Xh XXm" ou "XXm XXs"
+  String get formattedDuration {
+    final int seconds = durationMillis ~/ 1000;
+    final int h = seconds ~/ 3600;
+    final int m = (seconds % 3600) ~/ 60;
+    final int s = seconds % 60;
+    if (h > 0) {
+      return "${h}h ${m.toString().padLeft(2, '0')}m";
+    } else {
+      return "${m}m ${s.toString().padLeft(2, '0')}s";
+    }
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

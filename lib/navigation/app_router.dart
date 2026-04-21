@@ -8,6 +8,7 @@ import '../screens/session_details_screen.dart';
 import '../screens/session_of_the_day_screen.dart';
 import '../screens/tracker_screen.dart';
 import '../screens/assets_screen.dart';
+import '../screens/leveling_screen.dart';
 
 class PlaceholderScreen extends StatelessWidget {
   final String title;
@@ -42,6 +43,7 @@ class MainLayout extends StatelessWidget {
       if (currentRoute.startsWith('/sessions/details')) {
         return "WORKOUT DETAILS";
       }
+      if (currentRoute == '/leveling') return "PROGRESSION";
       return "CALI TRACK";
     }
 
@@ -151,6 +153,7 @@ class AppDrawer extends StatelessWidget {
           ),
           buildMenuItem("WORKOUTS", '/sessions', Icons.list_alt_rounded),
           buildMenuItem("TRACKER", '/tracker', Icons.insights_rounded),
+          buildMenuItem("PROGRESS", '/leveling', Icons.military_tech_rounded),
           buildMenuItem("ASSETS", '/assets', Icons.category_rounded),
           buildMenuItem("SETTINGS", '/settings', Icons.settings_rounded),
         ],
@@ -188,12 +191,16 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
         GoRoute(
+          path: '/assets',
+          builder: (context, state) => const AssetsScreen(),
+        ),
+        GoRoute(
           path: '/tracker',
           builder: (context, state) => const TrackerScreen(),
         ),
         GoRoute(
-          path: '/assets',
-          builder: (context, state) => const AssetsScreen(),
+          path: '/leveling',
+          builder: (context, state) => const LevelingScreen(),
         ),
         GoRoute(
           path: '/settings',

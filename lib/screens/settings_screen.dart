@@ -3,11 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
 // import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:provider/provider.dart';
+// import 'package:permission_handler/permission_handler.dart';
+// import 'package:provider/provider.dart';
 import '../main.dart';
-import '../viewmodels/session_provider.dart';
-import '../services/notification_service.dart';
+// import '../viewmodels/session_provider.dart';
+// import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -95,36 +95,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }*/
 
   // Logic for notifications (FIXED)
-  Future<void> _toggleNotifications(bool val) async {
-    await progressRepository.setDailyNotifications(val);
+  // Future<void> _toggleNotifications(bool val) async {
+  //   await progressRepository.setDailyNotifications(val);
 
-    if (val) {
-      // Request notification permission (iOS/Android 13+)
-      await Permission.notification.request();
+  //   if (val) {
+  //     // Request notification permission (iOS/Android 13+)
+  //     await Permission.notification.request();
 
-      // Ensure the widget is still mounted after the await
-      if (!mounted) return;
+  //     if (mounted && Theme.of(context).platform == TargetPlatform.android) {
+  //       await Permission.scheduleExactAlarm.request();
+  //     }
 
-      // Fetch all sessions to schedule them
-      final sessions = Provider.of<SessionProvider>(
-        context,
-        listen: false,
-      ).allSessions;
+  //     // Ensure the widget is still mounted after the await
+  //     if (!mounted) return;
 
-      await notificationService.scheduleWorkoutNotifications(sessions);
+  //     // Fetch all sessions to schedule them
+  //     final sessions = Provider.of<SessionProvider>(
+  //       context,
+  //       listen: false,
+  //     ).allSessions;
 
-      // Verify once more before updating the UI
-      if (!mounted) return;
+  //     await notificationService.scheduleWorkoutNotifications(sessions);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Notifications enabled for 06:00 AM on workout days!"),
-        ),
-      );
-    } else {
-      await notificationService.cancelAllNotifications();
-    }
-  }
+  //     // Verify once more before updating the UI
+  //     if (!mounted) return;
+
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(
+  //         content: Text("Notifications enabled for 06:00 AM on workout days!"),
+  //       ),
+  //     );
+  //   } else {
+  //     await notificationService.cancelAllNotifications();
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -272,23 +276,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   context: context,
                   child: Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              "DAILY NOTIFICATIONS (06:00 AM)",
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ),
-                          Switch(
-                            value: progressRepository.dailyNotifications,
-                            onChanged: _toggleNotifications, // Fixed here
-                            activeThumbColor: colorScheme.primary,
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 24),
+                      // Row(
+                      //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      //   children: [
+                      //     Expanded(
+                      //       child: Text(
+                      //         "DAILY NOTIFICATIONS (06:00 AM)",
+                      //         style: Theme.of(context).textTheme.titleMedium,
+                      //       ),
+                      //     ),
+                      //     Switch(
+                      //       value: progressRepository.dailyNotifications,
+                      //       onChanged: _toggleNotifications, // Fixed here
+                      //       activeThumbColor: colorScheme.primary,
+                      //     ),
+                      //   ],
+                      // ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [

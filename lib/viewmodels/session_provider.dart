@@ -23,6 +23,7 @@ class SessionProvider extends ChangeNotifier {
   Session? get sessionOfTheDay => _sessionOfTheDay;
   SessionProgress get progress => _progress;
   bool get isSessionOfTheDayCompleted => _isSessionOfTheDayCompleted;
+  bool get keepAwake => _progressRepo.keepAwake;
 
   SessionProvider(this._progressRepo) {
     _loadSessions();
@@ -141,6 +142,19 @@ class SessionProvider extends ChangeNotifier {
     await _loadSessions();
   }
 
+  // Helper pour déduire le type d'exercice
+  ExerciseType _getTypeFromExercise(Exercise ex) {
+    if (ex is Classic) return ExerciseType.classic;
+    if (ex is Amrap) return ExerciseType.amrap;
+    if (ex is Emom) return ExerciseType.emom;
+    if (ex is RestPause) return ExerciseType.restPause;
+    if (ex is Cluster) return ExerciseType.cluster;
+    if (ex is Circuit) return ExerciseType.circuit;
+    if (ex is IsoMax) return ExerciseType.isoMax;
+    if (ex is IsoPositions) return ExerciseType.isoPositions;
+    return ExerciseType.restBlock;
+  }
+
   Future<void> importSessionFromJson(String jsonString) async {
     try {
       final map = jsonDecode(jsonString) as Map<String, dynamic>;
@@ -152,7 +166,56 @@ class SessionProvider extends ChangeNotifier {
         }
         map['exercises'] = jsonEncode(exList);
       }
-      await addSession(Session.fromMap(map));
+
+      final newSession = Session.fromMap(map);
+
+      // --- IMPORT AUTOMATIQUE DES ASSETS INCONNUS ---
+      final existingAssets = await _dbService.getAllAssets();
+      final existingConditions = await _dbService.getAllConditions();
+
+      for (final ex in newSession.exercises) {
+        // 1. Importer la condition si elle n'existe pas
+        if (ex.condition != null) {
+          final cond = ex.condition!;
+          bool condExists = existingConditions.any(
+            (c) =>
+                c.name.toLowerCase() == cond.name.toLowerCase() &&
+                c.type == cond.type,
+          );
+
+          if (!condExists) {
+            await _dbService.insertCondition(cond);
+            existingConditions.add(
+              cond,
+            ); // Met à jour la liste locale pour cette boucle
+          }
+        }
+
+        // 2. Importer l'exercice comme Asset s'il n'existe pas
+        final exType = _getTypeFromExercise(ex);
+        if (exType != ExerciseType.restBlock) {
+          bool assetExists = existingAssets.any(
+            (a) =>
+                a.name.toLowerCase() == ex.name.toLowerCase() &&
+                a.type == exType,
+          );
+
+          if (!assetExists) {
+            final newAsset = AssetExercise(
+              name: ex.name,
+              type: exType,
+              condition: ex.condition,
+            );
+            await _dbService.insertAsset(newAsset);
+            existingAssets.add(
+              newAsset,
+            ); // Met à jour la liste locale pour cette boucle
+          }
+        }
+      }
+      // ------------------------------------------------
+
+      await addSession(newSession);
     } catch (e) {
       debugPrint("Error importing session: $e");
       rethrow;
@@ -299,6 +362,15 @@ class SessionProvider extends ChangeNotifier {
     int durationMillis,
     List<WorkoutLogEntry> logs,
   ) async {
+    // FIX: Empêcher le double enregistrement si la méthode est appelée plusieurs fois
+    if (_progress.isSaved) {
+      debugPrint("Workout already saved. Skipping double log insertion.");
+      return;
+    }
+
+    // Marquer immédiatement comme sauvegardé en mémoire locale pour bloquer les appels concurrents
+    _progress = _progress.copyWith(isSaved: true);
+
     final historySessionId = const Uuid().v4();
     List<String> finalStats = List.from(_progress.stats);
 
