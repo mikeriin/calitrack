@@ -72,15 +72,22 @@ class SessionProvider extends ChangeNotifier {
     final now = DateTime.now();
     final currentDay = Day.values[now.weekday - 1];
 
-    // 1. Chercher dans le Programme Actif en priorité
+    // Vérifie d'abord s'il y a un programme actif
+    Program? activeProgram;
     try {
-      final activeProg = _allPrograms.firstWhere((p) => p.isActive);
-      for (var week in activeProg.weeks) {
+      activeProgram = _allPrograms.firstWhere((p) => p.isActive);
+    } catch (_) {
+      activeProgram = null;
+    }
+
+    if (activeProgram != null) {
+      // 1. Un programme est actif : on cherche UNIQUEMENT dans ce programme
+      for (var week in activeProgram.weeks) {
         bool weekHasUncompleted = false;
         Session? candidateForToday;
 
         for (var session in week.sessions) {
-          if (!activeProg.completedSessionIds.contains(session.id)) {
+          if (!activeProgram.completedSessionIds.contains(session.id)) {
             weekHasUncompleted = true;
             if (session.day == currentDay) {
               candidateForToday = session;
@@ -94,15 +101,11 @@ class SessionProvider extends ChangeNotifier {
           if (candidateForToday != null) {
             _sessionOfTheDay = candidateForToday;
           }
-          break;
+          break; // On s'arrête à la première semaine non terminée
         }
       }
-    } catch (e) {
-      // Aucun programme actif trouvé
-    }
-
-    // 2. Fallback sur les séances isolées
-    if (_sessionOfTheDay == null) {
+    } else {
+      // 2. AUCUN programme n'est actif : on fallback sur les séances isolées
       try {
         _sessionOfTheDay = _allSessions.firstWhere((s) => s.day == currentDay);
       } catch (e) {
