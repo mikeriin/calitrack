@@ -9,8 +9,10 @@ const uuid = Uuid();
 
 enum ExerciseType {
   classic("CLASSIC (Sets/Reps)"),
+  pyramid("PYRAMID (Up/Down/Up&Down)"),
   amrap("AMRAP (Time Limit)"),
   emom("EMOM (Intervals)"),
+  multiEmom("MULTI-EMOM (Circuit)"),
   restPause("REST-PAUSE (Max Reps)"),
   cluster("CLUSTER (For Time)"),
   circuit("CIRCUIT (Multi-exercise)"),
@@ -20,6 +22,15 @@ enum ExerciseType {
 
   final String label;
   const ExerciseType(this.label);
+}
+
+enum PyramidType {
+  up("Up"),
+  down("Down"),
+  upAndDown("Up & Down");
+
+  final String label;
+  const PyramidType(this.label);
 }
 
 enum Day {
@@ -234,6 +245,34 @@ sealed class Exercise {
           restSeconds: map['restSeconds'],
           condition: parsedCondition,
         );
+      case 'Pyramid':
+        return Pyramid(
+          id: map['id'],
+          name: map['name'],
+          minReps: map['minReps'],
+          maxReps: map['maxReps'],
+          increment: map['increment'],
+          weight: map['weight']?.toDouble() ?? 0.0,
+          restSeconds: map['restSeconds'],
+          pyramidType: PyramidType.values.firstWhere(
+            (e) => e.name == map['pyramidType'],
+            orElse: () => PyramidType.upAndDown,
+          ),
+          condition: parsedCondition,
+        );
+      case 'MultiEmom':
+        return MultiEmom(
+          id: map['id'],
+          name: map['name'],
+          everyXSeconds: map['everyXSeconds'] ?? 60,
+          totalRounds: map['totalRounds'] ?? 1,
+          minutes:
+              (map['minutes'] as List?)
+                  ?.map((e) => EmomMinuteGroup.fromMap(e))
+                  .toList() ??
+              [],
+          condition: parsedCondition,
+        );
       default:
         throw Exception("Unknown type: $type");
     }
@@ -370,6 +409,27 @@ class Emom implements Exercise {
     'movements': movements.map((e) => e.toMap()).toList(),
     'condition': condition?.toMap(),
   };
+}
+
+class EmomMinuteGroup {
+  final int minuteIndex;
+  final List<SubExercise> movements;
+
+  EmomMinuteGroup({required this.minuteIndex, required this.movements});
+
+  Map<String, dynamic> toMap() => {
+    'minuteIndex': minuteIndex,
+    'movements': movements.map((e) => e.toMap()).toList(),
+  };
+
+  factory EmomMinuteGroup.fromMap(Map<String, dynamic> map) {
+    return EmomMinuteGroup(
+      minuteIndex: map['minuteIndex'],
+      movements: (map['movements'] as List)
+          .map((e) => SubExercise.fromMap(e))
+          .toList(),
+    );
+  }
 }
 
 class RestPause implements Exercise {
@@ -688,7 +748,6 @@ class HistorySession {
     required this.isCompleted,
   }) : id = id ?? uuid.v4();
 
-  // Helper pour afficher la durée au format "Xh XXm" ou "XXm XXs"
   String get formattedDuration {
     final int seconds = durationMillis ~/ 1000;
     final int h = seconds ~/ 3600;
@@ -844,4 +903,176 @@ class AssetExercise {
       condition: parsedCondition,
     );
   }
+}
+
+// ==========================================
+// PROGRAM MODELS
+// ==========================================
+
+class ProgramWeek {
+  final String id;
+  String name;
+  List<Session> sessions;
+
+  ProgramWeek({String? id, required this.name, this.sessions = const []})
+    : id = id ?? uuid.v4();
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'sessions': jsonEncode(sessions.map((e) => e.toMap()).toList()),
+  };
+
+  factory ProgramWeek.fromMap(Map<String, dynamic> map) {
+    return ProgramWeek(
+      id: map['id'],
+      name: map['name'],
+      sessions: map['sessions'] != null
+          ? (jsonDecode(map['sessions']) as List)
+                .map((e) => Session.fromMap(e))
+                .toList()
+          : [],
+    );
+  }
+}
+
+class Program {
+  final String id;
+  String name;
+  bool isActive;
+  List<ProgramWeek> weeks;
+  List<String> completedSessionIds;
+
+  Program({
+    String? id,
+    required this.name,
+    this.isActive = false,
+    this.weeks = const [],
+    this.completedSessionIds = const [],
+  }) : id = id ?? uuid.v4();
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'isActive': isActive ? 1 : 0,
+    'weeks': jsonEncode(weeks.map((e) => e.toMap()).toList()),
+    'completedSessionIds': jsonEncode(completedSessionIds),
+  };
+
+  factory Program.fromMap(Map<String, dynamic> map) {
+    return Program(
+      id: map['id'],
+      name: map['name'],
+      isActive: map['isActive'] == 1,
+      weeks: map['weeks'] != null
+          ? (jsonDecode(map['weeks']) as List)
+                .map((e) => ProgramWeek.fromMap(e))
+                .toList()
+          : [],
+      completedSessionIds: map['completedSessionIds'] != null
+          ? List<String>.from(jsonDecode(map['completedSessionIds']))
+          : [],
+    );
+  }
+}
+
+class Pyramid implements Exercise {
+  @override
+  final String id;
+  @override
+  final String name;
+  @override
+  final ProgressionCondition? condition;
+
+  final int minReps;
+  final int maxReps;
+  final int increment;
+  final double weight;
+  final int restSeconds;
+  final PyramidType pyramidType;
+
+  Pyramid({
+    String? id,
+    required this.name,
+    required this.minReps,
+    required this.maxReps,
+    required this.increment,
+    this.weight = 0.0,
+    required this.restSeconds,
+    this.pyramidType = PyramidType.upAndDown,
+    this.condition,
+  }) : id = id ?? uuid.v4();
+
+  @override
+  Pyramid copyWithCondition(ProgressionCondition? newCondition) {
+    return Pyramid(
+      id: id,
+      name: name,
+      minReps: minReps,
+      maxReps: maxReps,
+      increment: increment,
+      weight: weight,
+      restSeconds: restSeconds,
+      pyramidType: pyramidType,
+      condition: newCondition,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toMap() => {
+    'type': 'Pyramid',
+    'id': id,
+    'name': name,
+    'minReps': minReps,
+    'maxReps': maxReps,
+    'increment': increment,
+    'weight': weight,
+    'restSeconds': restSeconds,
+    'pyramidType': pyramidType.name,
+    'condition': condition?.toMap(),
+  };
+}
+
+class MultiEmom implements Exercise {
+  @override
+  final String id;
+  @override
+  final String name;
+  @override
+  final ProgressionCondition? condition;
+  final int everyXSeconds;
+  final int totalRounds;
+  final List<EmomMinuteGroup> minutes;
+
+  MultiEmom({
+    String? id,
+    required this.name,
+    required this.everyXSeconds,
+    required this.totalRounds,
+    this.minutes = const [],
+    this.condition,
+  }) : id = id ?? uuid.v4();
+
+  @override
+  MultiEmom copyWithCondition(ProgressionCondition? newCondition) {
+    return MultiEmom(
+      id: id,
+      name: name,
+      everyXSeconds: everyXSeconds,
+      totalRounds: totalRounds,
+      minutes: minutes,
+      condition: newCondition,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toMap() => {
+    'type': 'MultiEmom',
+    'id': id,
+    'name': name,
+    'everyXSeconds': everyXSeconds,
+    'totalRounds': totalRounds,
+    'minutes': minutes.map((e) => e.toMap()).toList(),
+    'condition': condition?.toMap(),
+  };
 }

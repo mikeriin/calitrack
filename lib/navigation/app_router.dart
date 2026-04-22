@@ -9,6 +9,7 @@ import '../screens/session_of_the_day_screen.dart';
 import '../screens/tracker_screen.dart';
 import '../screens/assets_screen.dart';
 import '../screens/leveling_screen.dart';
+import '../screens/program_details_screen.dart';
 
 class PlaceholderScreen extends StatelessWidget {
   final String title;
@@ -39,16 +40,19 @@ class MainLayout extends StatelessWidget {
       if (currentRoute == '/tracker') return "TRACKER";
       if (currentRoute == '/assets') return "ASSETS";
       if (currentRoute == '/settings') return "SETTINGS";
-      // Correction de l'URL ici
       if (currentRoute.startsWith('/sessions/details')) {
         return "WORKOUT DETAILS";
+      }
+      if (currentRoute.startsWith('/programs/details')) {
+        return "PROGRAM DETAILS";
       }
       if (currentRoute == '/leveling') return "PROGRESSION";
       return "CALI TRACK";
     }
 
-    // Correction de l'URL ici pour bien détecter l'écran des détails
-    final isDetailsScreen = currentRoute.startsWith('/sessions/details');
+    final isDetailsScreen =
+        currentRoute.startsWith('/sessions/details') ||
+        currentRoute.startsWith('/programs/details');
 
     return Scaffold(
       appBar: AppBar(
@@ -66,8 +70,15 @@ class MainLayout extends StatelessWidget {
         leading: isDetailsScreen
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_rounded, size: 28),
-                // Retour explicite à l'écran des sessions
-                onPressed: () => context.go('/sessions'),
+                onPressed: () {
+                  // Retour intelligent : dépile l'écran actuel.
+                  // Si pas d'historique (ex: lien direct), renvoie vers /sessions
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/sessions');
+                  }
+                },
               )
             : Builder(
                 builder: (context) => IconButton(
@@ -189,6 +200,13 @@ final GoRouter appRouter = GoRouter(
               },
             ),
           ],
+        ),
+        GoRoute(
+          path: '/programs/details/:id',
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return ProgramDetailsScreen(programId: id);
+          },
         ),
         GoRoute(
           path: '/assets',

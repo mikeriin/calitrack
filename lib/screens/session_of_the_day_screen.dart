@@ -103,12 +103,11 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
     final provider = context.watch<SessionProvider>();
     final trackerProvider = context.watch<TrackerProvider>();
     final sessionOfTheDay = provider.sessionOfTheDay;
-    final allSessions = provider.allSessions;
     final progress = provider.progress;
     final colorScheme = Theme.of(context).colorScheme;
 
     final activeSession = progress.sessionId.isNotEmpty
-        ? allSessions.where((s) => s.id == progress.sessionId).firstOrNull
+        ? provider.getSessionById(progress.sessionId) ?? sessionOfTheDay
         : sessionOfTheDay;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -134,51 +133,54 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
 
         final levelingProvider = context.read<LevelingProvider>();
 
-        provider.saveCompletedWorkout(activeSession, duration, progress.logs).then((
-          _,
-        ) async {
-          // Ajout du async ici
+        provider
+            .saveCompletedWorkout(activeSession, duration, progress.logs)
+            .then((_) async {
+              final gainedXp = await levelingProvider.processWorkoutLogs(
+                progress.logs,
+                provider,
+                duration,
+              );
 
-          // On appelle le provider avec la durée et on récupère l'XP
-          final gainedXp = await levelingProvider.processWorkoutLogs(
-            progress.logs,
-            provider,
-            duration,
-          );
+              if (!context.mounted) return;
 
-          if (!context.mounted) return;
+              if (duration < 1800000) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text(
+                      "Workout too short (< 30 min). No XP earned this time!",
+                    ),
+                    backgroundColor: colorScheme.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+              } else if (gainedXp > 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      "🎉 Congrats! You've gained +${gainedXp.toInt()} XP!",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    backgroundColor: colorScheme.primary,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+              }
 
-          if (duration < 1800000) {
-            // Moins de 30 minutes
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text(
-                  "Workout too short (< 30 min). No XP earned this time!",
-                ),
-                backgroundColor: colorScheme.error,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          } else if (gainedXp > 0) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  "🎉 Congrats! You've gained +${gainedXp.toInt()} XP!",
-                ),
-                backgroundColor: Colors.amber.shade700,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-
-          trackerProvider.loadHistory().then((_) {
-            if (mounted) {
-              setState(() {
-                _isSaving = false;
+              trackerProvider.loadHistory().then((_) {
+                if (mounted) {
+                  setState(() {
+                    _isSaving = false;
+                  });
+                }
               });
-            }
-          });
-        });
+            });
       }
     });
 
@@ -210,44 +212,74 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
   ) {
     if (activeSession == null) {
       return Center(
-        child: Text(
-          "REST DAY.",
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.bedtime_rounded,
+              size: 80,
+              color: colorScheme.surfaceContainerHighest,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              "REST DAY",
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                letterSpacing: 2,
+              ),
+            ),
+          ],
         ),
       );
     }
 
     if (progress.isFinished) {
       return SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           children: [
+            const SizedBox(height: 40),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colorScheme.primary.withValues(alpha: 0.1),
+              ),
+              child: Icon(
+                Icons.emoji_events_rounded,
+                size: 64,
+                color: colorScheme.primary,
+              ),
+            ),
             const SizedBox(height: 32),
             SummaryView(
               title: activeSession.title,
               logs: progress.logs,
               totalTime: _sessionDuration,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
-              height: 56,
+              height: 64,
               child: FilledButton(
                 onPressed: () => provider.resetSession(),
                 style: FilledButton.styleFrom(
                   backgroundColor: colorScheme.primary,
-                  elevation: 0,
+                  elevation: 8,
+                  shadowColor: colorScheme.primary.withValues(alpha: 0.4),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
                 child: Text(
                   activeSession.id != provider.sessionOfTheDay?.id
                       ? "FINISH WORKOUT"
                       : "FINISH & BACK",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 1,
+                  ),
                 ),
               ),
             ),
@@ -261,12 +293,15 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
       return Center(
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return ScaleTransition(scale: animation, child: child);
+          },
           child: _countdownNumber > 0
               ? Text(
                   "$_countdownNumber",
                   key: ValueKey<int>(_countdownNumber),
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                    fontSize: 140,
+                    fontSize: 180,
                     color: colorScheme.primary,
                     height: 1,
                   ),
@@ -303,45 +338,61 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: colorScheme.surfaceContainerHighest,
-                  width: 2,
-                ),
+                color: colorScheme.primary,
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: Icon(
                 Icons.check_rounded,
-                size: 60,
-                color: colorScheme.primary,
+                size: 64,
+                color: colorScheme.onPrimary,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             Text(
               "WORKOUT DONE",
-              style: Theme.of(context).textTheme.headlineMedium,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(letterSpacing: 1),
             ),
             const SizedBox(height: 8),
             Text(
               "Great job today. Check your history.",
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 16,
+              ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 48),
             SizedBox(
-              height: 48,
+              height: 56,
+              width: 200,
               child: OutlinedButton.icon(
                 onPressed: () => _startInitialCountdown(activeSession.id),
-                icon: const Icon(Icons.refresh_rounded, size: 20),
+                icon: const Icon(Icons.refresh_rounded, size: 24),
                 label: const Text(
                   "REDO SESSION",
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: colorScheme.onSurface,
-                  side: BorderSide(color: colorScheme.surfaceContainerHighest),
+                  side: BorderSide(
+                    color: colorScheme.surfaceContainerHighest,
+                    width: 2,
+                  ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
               ),
@@ -354,39 +405,48 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
     if (progress.startTime == 0) {
       return Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 activeSession.title.toUpperCase(),
-                style: Theme.of(context).textTheme.headlineLarge,
+                style: Theme.of(
+                  context,
+                ).textTheme.headlineLarge?.copyWith(height: 1.2),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 60),
+              const SizedBox(height: 64),
               GestureDetector(
                 onTap: () => _startInitialCountdown(activeSession.id),
                 child: Container(
-                  width: 120,
-                  height: 120,
+                  width: 140,
+                  height: 140,
                   decoration: BoxDecoration(
                     color: colorScheme.primary,
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.primary.withValues(alpha: 0.4),
+                        blurRadius: 30,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     Icons.play_arrow_rounded,
-                    size: 60,
+                    size: 72,
                     color: colorScheme.onPrimary,
                   ),
                 ),
               ),
-              const SizedBox(height: 60),
+              const SizedBox(height: 64),
               if (activeSession.exercises.isNotEmpty)
                 UpcomingExerciseCard(
                   exercise: activeSession.exercises.first,
                   titleLabel: "FIRST EXERCISE",
                 ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -402,11 +462,19 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
 
     return Column(
       children: [
+        // Top Bar
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).scaffoldBackgroundColor.withValues(alpha: 0.9),
             border: Border(
-              bottom: BorderSide(color: colorScheme.surfaceContainerHighest),
+              bottom: BorderSide(
+                color: colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
+              ),
             ),
           ),
           child: Row(
@@ -417,10 +485,12 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
                 icon: Icon(
                   Icons.close_rounded,
                   color: colorScheme.onSurfaceVariant,
+                  size: 28,
                 ),
                 constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 20),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -430,16 +500,17 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: sessionProgress,
-                        minHeight: 4,
+                        minHeight: 6,
                         backgroundColor: colorScheme.surfaceContainerHighest,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           colorScheme.primary,
@@ -449,11 +520,12 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 20),
               Text(
                 _sessionDuration,
                 style: TextStyle(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
                   color: colorScheme.primary,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -464,16 +536,18 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               children: [
                 if (progress.currentExIdx < activeSession.exercises.length) ...[
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    padding: const EdgeInsets.only(top: 40, bottom: 32),
                     child: Text(
                       activeSession.exercises[progress.currentExIdx].name
                           .toUpperCase(),
-                      style: Theme.of(context).textTheme.headlineMedium,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.headlineMedium?.copyWith(height: 1.2),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -483,7 +557,7 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
                     provider,
                     activeSession,
                   ),
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 80),
                 ],
               ],
             ),
@@ -495,34 +569,40 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
 
   Widget _buildCancelDialog(SessionProvider provider, ColorScheme colorScheme) {
     return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
       child: Container(
-        color: Colors.black.withValues(alpha: 0.6),
+        color: Colors.black.withValues(alpha: 0.7),
         alignment: Alignment.center,
         child: AlertDialog(
           backgroundColor: colorScheme.surface,
+          elevation: 24,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: colorScheme.surfaceContainerHighest),
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(
+              color: colorScheme.surfaceContainerHighest,
+              width: 1,
+            ),
           ),
           title: Text(
             "ABORT WORKOUT?",
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             textAlign: TextAlign.center,
           ),
           content: Text(
             "Discard session? No log will be recorded.",
-            style: TextStyle(color: colorScheme.onSurfaceVariant),
+            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 16),
             textAlign: TextAlign.center,
           ),
           actionsAlignment: MainAxisAlignment.center,
-          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
           actions: [
             Column(
               children: [
                 SizedBox(
                   width: double.infinity,
-                  height: 48,
+                  height: 56,
                   child: FilledButton(
                     onPressed: () {
                       provider.resetSession();
@@ -531,31 +611,35 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: colorScheme.error,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: const Text(
                       "QUIT WORKOUT",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
-                  height: 48,
+                  height: 56,
                   child: TextButton(
                     onPressed: () => setState(() => _showCancelDialog = false),
                     style: TextButton.styleFrom(
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: Text(
                       "RESUME",
                       style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
                       ),
                     ),
                   ),
@@ -578,6 +662,24 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
 
     if (exercise is Classic) {
       return ClassicWorkoutView(
+        key: exKey,
+        exercise: exercise,
+        progress: progress,
+        provider: provider,
+        session: session,
+      );
+    }
+    if (exercise is Pyramid) {
+      return PyramidWorkoutView(
+        key: exKey,
+        exercise: exercise,
+        progress: progress,
+        provider: provider,
+        session: session,
+      );
+    }
+    if (exercise is MultiEmom) {
+      return MultiEmomWorkoutView(
         key: exKey,
         exercise: exercise,
         progress: progress,
@@ -717,6 +819,19 @@ void _completeSetOrExercise(
   }
 }
 
+// Helper pour le style des TextFields numériques
+InputDecoration _digitalInputDecoration(ColorScheme colorScheme) {
+  return InputDecoration(
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide.none,
+    ),
+    filled: true,
+    fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+    contentPadding: const EdgeInsets.symmetric(vertical: 24),
+  );
+}
+
 // ==========================================
 // EXERCISE SPECIFIC VIEWS
 // ==========================================
@@ -786,18 +901,26 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final weightLabel = widget.exercise.weight > 0
         ? " @ ${widget.exercise.weight} kg"
         : "";
 
     return Column(
       children: [
-        Text(
-          "SET ${widget.progress.currentSetIdx}/${widget.exercise.sets} • ${widget.exercise.reps} TARGET REPS$weightLabel",
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
-          textAlign: TextAlign.center,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "SET ${widget.progress.currentSetIdx}/${widget.exercise.sets} • ${widget.exercise.reps} TARGET REPS$weightLabel",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+            textAlign: TextAlign.center,
+          ),
         ),
         if (widget.progress.isResting) ...[
           RestTimer(
@@ -806,23 +929,30 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
             onFinish: _skipRest,
           ),
           SizedBox(
-            height: 56,
+            height: 64,
             width: double.infinity,
             child: OutlinedButton(
               onPressed: _skipRest,
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                side: BorderSide(color: colorScheme.surfaceContainerHighest),
+                side: BorderSide(
+                  color: colorScheme.surfaceContainerHighest,
+                  width: 2,
+                ),
               ),
-              child: const Text(
+              child: Text(
                 "SKIP RECOVERY",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.onSurface,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           Builder(
             builder: (context) {
               final isLastSet =
@@ -844,13 +974,24 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
             },
           ),
         ] else ...[
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colorScheme.surfaceContainerHighest),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: isLight
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+              border: isLight
+                  ? null
+                  : Border.all(color: colorScheme.surfaceContainerHighest),
             ),
             child: Column(
               children: [
@@ -858,40 +999,46 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
                   "REPS COMPLETED",
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
+                    letterSpacing: 1.5,
                   ),
                 ),
+                const SizedBox(height: 24),
                 TextField(
                   controller: _repsController,
                   keyboardType: TextInputType.number,
                   textInputAction: TextInputAction.done,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.displayLarge?.copyWith(fontSize: 72, height: 1.2),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
+                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                    fontSize: 80,
+                    height: 1,
+                    color: colorScheme.primary,
                   ),
+                  decoration: _digitalInputDecoration(colorScheme),
                   textAlign: TextAlign.center,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: FilledButton(
               onPressed: _onDone,
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.primary,
+                elevation: 4,
+                shadowColor: colorScheme.primary.withValues(alpha: 0.3),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               child: const Text(
                 "LOG SET",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
@@ -961,6 +1108,7 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final repsPerRound = widget.exercise.movements.fold(
       0,
       (sum, m) => sum + m.reps,
@@ -968,38 +1116,70 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
 
     return Column(
       children: [
-        Text(
-          "AMRAP • ${widget.exercise.timeCapMinutes} MIN",
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
-        ),
-        const SizedBox(height: 24),
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            color: colorScheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "AMRAP • ${widget.exercise.timeCapMinutes} MIN",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
+        ),
+        const SizedBox(height: 32),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: isLight
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 20,
+                    ),
+                  ]
+                : null,
+            border: isLight
+                ? null
+                : Border.all(color: colorScheme.surfaceContainerHighest),
           ),
           child: Column(
             children: widget.exercise.movements
                 .map(
                   (m) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: Row(
                       children: [
-                        Text(
-                          "${m.reps}x",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.primary,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "${m.reps}x",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: colorScheme.primary,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: Text(
                             "${m.name}${m.weight > 0 ? " @ ${m.weight}kg" : ""}",
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
                       ],
@@ -1009,23 +1189,27 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
                 .toList(),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 40),
 
         if (!_isStarted) ...[
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: FilledButton(
               onPressed: _startAmrap,
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               child: const Text(
                 "START AMRAP",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
@@ -1038,11 +1222,21 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
             isCountdownStyle: true,
           ),
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colorScheme.surfaceContainerHighest),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: isLight
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                      ),
+                    ]
+                  : null,
+              border: isLight
+                  ? null
+                  : Border.all(color: colorScheme.surfaceContainerHighest),
             ),
             child: Column(
               children: [
@@ -1050,9 +1244,10 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
                   "ROUNDS COMPLETED",
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
+                    letterSpacing: 1.5,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -1062,64 +1257,88 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
                           setState(() => _roundsCompleted--);
                         }
                       },
-                      icon: const Icon(Icons.remove_rounded),
+                      icon: const Icon(Icons.remove_rounded, size: 32),
                       style: IconButton.styleFrom(
                         backgroundColor: colorScheme.surfaceContainerHighest
                             .withValues(alpha: 0.5),
+                        padding: const EdgeInsets.all(16),
                       ),
                     ),
                     Text(
                       "$_roundsCompleted",
-                      style: Theme.of(
-                        context,
-                      ).textTheme.displayLarge?.copyWith(fontSize: 64),
+                      style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                        fontSize: 80,
+                        color: colorScheme.primary,
+                      ),
                     ),
                     IconButton(
                       onPressed: () => setState(() => _roundsCompleted++),
                       icon: Icon(
                         Icons.add_rounded,
+                        size: 32,
                         color: colorScheme.onPrimary,
                       ),
                       style: IconButton.styleFrom(
                         backgroundColor: colorScheme.primary,
+                        padding: const EdgeInsets.all(16),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 Text(
                   "(${_roundsCompleted * repsPerRound} reps base)",
                   style: TextStyle(
                     color: colorScheme.onSurfaceVariant,
-                    fontSize: 12,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           TextButton(
             onPressed: _onTimeUp,
             child: Text(
               "FINISH EARLY",
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
             ),
           ),
         ] else ...[
-          Icon(Icons.timer_off_rounded, size: 48, color: colorScheme.primary),
+          Icon(Icons.timer_off_rounded, size: 64, color: colorScheme.primary),
           const SizedBox(height: 16),
-          Text("TIME'S UP!", style: Theme.of(context).textTheme.headlineMedium),
+          Text(
+            "TIME'S UP!",
+            style: Theme.of(
+              context,
+            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
           Text(
             "$_roundsCompleted ROUNDS COMPLETED",
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colorScheme.surfaceContainerHighest),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: isLight
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                      ),
+                    ]
+                  : null,
+              border: isLight
+                  ? null
+                  : Border.all(color: colorScheme.surfaceContainerHighest),
             ),
             child: Column(
               children: [
@@ -1127,38 +1346,45 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
                   "EXTRA REPS",
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
+                    letterSpacing: 1.5,
                   ),
                 ),
+                const SizedBox(height: 24),
                 TextField(
                   controller: _extraRepsCtrl,
                   keyboardType: TextInputType.number,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.displayLarge?.copyWith(fontSize: 72, height: 1.2),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    hintText: "0",
+                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                    fontSize: 80,
+                    height: 1,
+                    color: colorScheme.primary,
                   ),
+                  decoration: _digitalInputDecoration(
+                    colorScheme,
+                  ).copyWith(hintText: "0"),
                   textAlign: TextAlign.center,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: FilledButton(
               onPressed: _logScore,
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               child: const Text(
                 "LOG AMRAP SCORE",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
@@ -1237,40 +1463,74 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+
     return Column(
       children: [
-        Text(
-          "ROUND ${widget.progress.currentSetIdx}/${widget.exercise.totalRounds} • EVERY ${widget.exercise.everyXSeconds} SEC",
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
-        ),
-        const SizedBox(height: 24),
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            color: colorScheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "ROUND ${widget.progress.currentSetIdx}/${widget.exercise.totalRounds} • EVERY ${widget.exercise.everyXSeconds} SEC",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
+        ),
+        const SizedBox(height: 32),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: isLight
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 20,
+                    ),
+                  ]
+                : null,
+            border: isLight
+                ? null
+                : Border.all(color: colorScheme.surfaceContainerHighest),
           ),
           child: Column(
             children: widget.exercise.movements
                 .map(
                   (m) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: Row(
                       children: [
-                        Text(
-                          "${m.reps}x",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.primary,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "${m.reps}x",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: colorScheme.primary,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: Text(
                             m.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
                       ],
@@ -1280,23 +1540,27 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
                 .toList(),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 40),
 
         if (!_isStarted) ...[
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: FilledButton(
               onPressed: _startEmom,
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               child: const Text(
                 "START EMOM",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
@@ -1308,12 +1572,16 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
             onFinish: _onRoundFinished,
             isCountdownStyle: true,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           TextButton(
             onPressed: _finishExercise,
             child: Text(
               "END EARLY",
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
             ),
           ),
         ],
@@ -1395,15 +1663,23 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final currentSet = widget.progress.currentSetIdx;
 
     return Column(
       children: [
-        Text(
-          "MICRO-SET $currentSet/${widget.exercise.microSets}",
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "MICRO-SET $currentSet/${widget.exercise.microSets}",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
         ),
         if (_isLocalResting) ...[
           RestTimer(
@@ -1414,21 +1690,29 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
           ),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: OutlinedButton(
               onPressed: _onRestFinished,
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                side: BorderSide(
+                  color: colorScheme.surfaceContainerHighest,
+                  width: 2,
                 ),
               ),
-              child: const Text(
+              child: Text(
                 "SKIP REST",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.onSurface,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           Builder(
             builder: (context) {
               final isLastSet =
@@ -1454,17 +1738,28 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
           if (currentSet < widget.exercise.microSets) ...[
             Text(
               "MAX REPS!",
-              style: Theme.of(
-                context,
-              ).textTheme.displayLarge?.copyWith(fontSize: 48),
+              style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                fontSize: 56,
+                color: colorScheme.primary,
+              ),
             ),
             const SizedBox(height: 48),
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colorScheme.surfaceContainerHighest),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: isLight
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 20,
+                        ),
+                      ]
+                    : null,
+                border: isLight
+                    ? null
+                    : Border.all(color: colorScheme.surfaceContainerHighest),
               ),
               child: Column(
                 children: [
@@ -1472,49 +1767,65 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
                     "REPS COMPLETED",
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
+                      letterSpacing: 1.5,
                     ),
                   ),
+                  const SizedBox(height: 24),
                   TextField(
                     controller: _repsController,
                     keyboardType: TextInputType.number,
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      fontSize: 72,
-                      height: 1.2,
+                      fontSize: 80,
+                      height: 1,
+                      color: colorScheme.primary,
                     ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      hintText: "0",
-                    ),
+                    decoration: _digitalInputDecoration(
+                      colorScheme,
+                    ).copyWith(hintText: "0"),
                     textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
-              height: 56,
+              height: 64,
               child: FilledButton(
                 onPressed: _startRest,
                 style: FilledButton.styleFrom(
                   backgroundColor: colorScheme.primary,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
                 child: Text(
                   "START ${widget.exercise.restSeconds}S RECOVERY",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 1,
+                  ),
                 ),
               ),
             ),
           ] else ...[
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colorScheme.surfaceContainerHighest),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: isLight
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 20,
+                        ),
+                      ]
+                    : null,
+                border: isLight
+                    ? null
+                    : Border.all(color: colorScheme.surfaceContainerHighest),
               ),
               child: Column(
                 children: [
@@ -1522,39 +1833,45 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
                     "LAST SET REPS",
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
+                      letterSpacing: 1.5,
                     ),
                   ),
+                  const SizedBox(height: 24),
                   TextField(
                     controller: _repsController,
                     keyboardType: TextInputType.number,
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      fontSize: 72,
-                      height: 1.2,
+                      fontSize: 80,
+                      height: 1,
+                      color: colorScheme.primary,
                     ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      hintText: "0",
-                    ),
+                    decoration: _digitalInputDecoration(
+                      colorScheme,
+                    ).copyWith(hintText: "0"),
                     textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
-              height: 56,
+              height: 64,
               child: FilledButton(
                 onPressed: _finishExercise,
                 style: FilledButton.styleFrom(
                   backgroundColor: colorScheme.primary,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
                 child: const Text(
                   "LOG EXERCISE",
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 1,
+                  ),
                 ),
               ),
             ),
@@ -1631,13 +1948,20 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
 
     return Column(
       children: [
-        Text(
-          "GOAL: ${widget.exercise.targetReps} REPS",
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "GOAL: ${widget.exercise.targetReps} REPS",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
         ),
-        const SizedBox(height: 48),
+        const SizedBox(height: 64),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -1645,45 +1969,59 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
           children: [
             Text(
               "$_currentCount",
-              style: Theme.of(
-                context,
-              ).textTheme.displayLarge?.copyWith(fontSize: 100, height: 1),
+              style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                fontSize: 120,
+                height: 1,
+                color: colorScheme.primary,
+              ),
             ),
             Text(
               " / ${widget.exercise.targetReps}",
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: colorScheme.surfaceContainerHighest,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        Text(
-          "${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}",
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: _isStarted
-                ? colorScheme.primary
-                : colorScheme.onSurfaceVariant,
-            fontFeatures: const [FontFeature.tabularFigures()],
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Text(
+            "${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}",
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: _isStarted
+                  ? colorScheme.onSurface
+                  : colorScheme.onSurfaceVariant,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              letterSpacing: 2,
+            ),
           ),
         ),
-        const SizedBox(height: 48),
+        const SizedBox(height: 64),
 
         if (!_isStarted) ...[
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: FilledButton(
               onPressed: _startCluster,
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               child: const Text(
                 "START CLUSTER",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
@@ -1691,29 +2029,40 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
           GestureDetector(
             onTap: _incrementReps,
             child: Container(
-              width: 140,
-              height: 140,
+              width: 160,
+              height: 160,
               decoration: BoxDecoration(
                 color: colorScheme.primary,
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.4),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
               alignment: Alignment.center,
               child: Text(
                 "+${widget.exercise.incrementFactor}",
                 style: TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 56,
+                  fontWeight: FontWeight.w900,
                   color: colorScheme.onPrimary,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 48),
           TextButton(
             onPressed: _finishExercise,
             child: Text(
               "FINISH EARLY",
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
             ),
           ),
         ],
@@ -1811,14 +2160,22 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
 
     return Column(
       children: [
-        Text(
-          "ROUND ${widget.progress.currentSetIdx}/${widget.exercise.sets}",
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "ROUND ${widget.progress.currentSetIdx}/${widget.exercise.sets}",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
         ),
         if (widget.progress.isResting) ...[
           RestTimer(
@@ -1828,21 +2185,29 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
           ),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: OutlinedButton(
               onPressed: _skipRest,
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                side: BorderSide(
+                  color: colorScheme.surfaceContainerHighest,
+                  width: 2,
                 ),
               ),
-              child: const Text(
+              child: Text(
                 "SKIP RECOVERY",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.onSurface,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           Builder(
             builder: (context) {
               final isLastSet =
@@ -1864,44 +2229,69 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
             },
           ),
         ] else ...[
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           ...List.generate(widget.exercise.movements.length, (index) {
             final mov = widget.exercise.movements[index];
             return Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colorScheme.surfaceContainerHighest),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: isLight
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 20,
+                        ),
+                      ]
+                    : null,
+                border: isLight
+                    ? null
+                    : Border.all(color: colorScheme.surfaceContainerHighest),
               ),
               child: Column(
                 children: [
                   Text(
                     mov.name.toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                   if (mov.weight > 0)
-                    Text(
-                      "@ ${mov.weight} KG",
-                      style: TextStyle(
-                        color: colorScheme.secondary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "@ ${mov.weight} KG",
+                          style: TextStyle(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
                     ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   TextField(
                     controller: _controllers[index],
                     keyboardType: TextInputType.number,
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      fontSize: 60,
-                      height: 1.2,
+                      fontSize: 64,
+                      height: 1,
+                      color: colorScheme.primary,
                     ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                    ),
+                    decoration: _digitalInputDecoration(colorScheme),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -1911,18 +2301,22 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: FilledButton(
               onPressed: _onDone,
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               child: const Text(
                 "ROUND COMPLETED",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
@@ -2037,21 +2431,29 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
           ),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: OutlinedButton(
               onPressed: _skipRest,
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                side: BorderSide(
+                  color: colorScheme.surfaceContainerHighest,
+                  width: 2,
                 ),
               ),
-              child: const Text(
+              child: Text(
                 "SKIP RECOVERY",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.onSurface,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           Builder(
             builder: (context) {
               final isLastSet =
@@ -2077,69 +2479,94 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
     }
     return Column(
       children: [
-        Text(
-          "SET ${widget.progress.currentSetIdx}/${widget.exercise.sets} • ISO MAX",
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "SET ${widget.progress.currentSetIdx}/${widget.exercise.sets} • ISO MAX",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
         ),
-        const SizedBox(height: 48),
+        const SizedBox(height: 64),
         if (_phase == "IDLE") ...[
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: FilledButton(
               onPressed: _startCountdown,
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               child: const Text(
                 "START",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
         ] else if (_phase == "COUNTDOWN") ...[
-          Text("GET READY", style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            "GET READY",
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              letterSpacing: 2,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
             "-$_prepTime",
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              fontSize: 120,
-              color: colorScheme.secondary,
+              fontSize: 140,
+              color: colorScheme.primary,
             ),
           ),
         ] else if (_phase == "RUNNING") ...[
           Text(
             "HOLD!",
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(color: colorScheme.primary),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: colorScheme.primary,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w900,
+            ),
           ),
+          const SizedBox(height: 16),
           Text(
             "$_secondsElapsed",
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              fontSize: 120,
+              fontSize: 140,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 64),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: FilledButton(
               onPressed: _stopAndSave,
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.error,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               child: const Text(
                 "STOP & LOG",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
@@ -2249,6 +2676,8 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+
     if (widget.progress.isResting) {
       return Column(
         children: [
@@ -2259,21 +2688,29 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
           ),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: OutlinedButton(
               onPressed: _skipRest,
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                side: BorderSide(
+                  color: colorScheme.surfaceContainerHighest,
+                  width: 2,
                 ),
               ),
-              child: const Text(
+              child: Text(
                 "SKIP RECOVERY",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.onSurface,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           Builder(
             builder: (context) {
               final isLastSet =
@@ -2300,40 +2737,70 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
 
     return Column(
       children: [
-        Text(
-          "SET ${widget.progress.currentSetIdx}/${widget.exercise.sets} • ISO POSITIONS",
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: colorScheme.secondary),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "SET ${widget.progress.currentSetIdx}/${widget.exercise.sets} • ISO POSITIONS",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 40),
         if (_phase == "IDLE") ...[
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(12),
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: isLight
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                      ),
+                    ]
+                  : null,
+              border: isLight
+                  ? null
+                  : Border.all(color: colorScheme.surfaceContainerHighest),
             ),
             child: Column(
               children: widget.exercise.movements
                   .map(
                     (m) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Row(
                         children: [
-                          Text(
-                            "${m.reps}s",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.primary,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              "${m.reps}s",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: colorScheme.primary,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Text(
                               "${m.name}${m.weight > 0 ? " @ ${m.weight}kg" : ""}",
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
+                                fontSize: 16,
                               ),
                             ),
                           ),
@@ -2344,31 +2811,42 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
                   .toList(),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 40),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 64,
             child: FilledButton(
               onPressed: _startSequence,
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               child: const Text(
                 "START SEQUENCE",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
         ] else if (_phase == "PREP") ...[
-          Text("GET READY", style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            "GET READY",
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              letterSpacing: 2,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
             "-$_prepTime",
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              fontSize: 120,
-              color: colorScheme.secondary,
+              fontSize: 140,
+              color: colorScheme.primary,
             ),
           ),
         ] else if (_phase == "RUNNING") ...[
@@ -2377,25 +2855,29 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
             final mov = widget.exercise.movements[index];
             if (isActive) {
               return Container(
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                padding: const EdgeInsets.all(24),
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.all(32),
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  border: Border.all(color: colorScheme.primary, width: 2),
-                  borderRadius: BorderRadius.circular(12),
+                  color: colorScheme.primary.withValues(alpha: 0.1),
+                  border: Border.all(color: colorScheme.primary, width: 3),
+                  borderRadius: BorderRadius.circular(24),
                 ),
                 child: Column(
                   children: [
                     Text(
                       mov.name.toUpperCase(),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                        letterSpacing: 1,
+                      ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
                     Text(
                       "$_currentHoldTime",
                       style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                        fontSize: 80,
+                        fontSize: 100,
                         color: colorScheme.primary,
                       ),
                     ),
@@ -2404,10 +2886,14 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
               );
             }
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 mov.name.toUpperCase(),
-                style: TextStyle(color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             );
           }),
@@ -2431,6 +2917,657 @@ class RestBlockWorkoutView extends StatefulWidget {
   });
   @override
   State<RestBlockWorkoutView> createState() => _RestBlockWorkoutViewState();
+}
+
+class PyramidWorkoutView extends StatefulWidget {
+  final Pyramid exercise;
+  final SessionProgress progress;
+  final SessionProvider provider;
+  final Session session;
+  const PyramidWorkoutView({
+    super.key,
+    required this.exercise,
+    required this.progress,
+    required this.provider,
+    required this.session,
+  });
+  @override
+  State<PyramidWorkoutView> createState() => _PyramidWorkoutViewState();
+}
+
+class _PyramidWorkoutViewState extends State<PyramidWorkoutView> {
+  final _repsController = TextEditingController();
+  late List<int> _repSequence;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateSequence();
+    _repsController.text = _getTargetRepsForCurrentSet().toString();
+  }
+
+  void _calculateSequence() {
+    _repSequence = [];
+    final min = widget.exercise.minReps;
+    final max = widget.exercise.maxReps;
+    final inc = widget.exercise.increment.abs() == 0
+        ? 1
+        : widget.exercise.increment.abs();
+
+    if (widget.exercise.pyramidType == PyramidType.up ||
+        widget.exercise.pyramidType == PyramidType.upAndDown) {
+      int current = min;
+      while (current <= max) {
+        _repSequence.add(current);
+        current += inc;
+      }
+      if (_repSequence.last != max) _repSequence.add(max);
+
+      if (widget.exercise.pyramidType == PyramidType.upAndDown) {
+        current = _repSequence.last - inc;
+        while (current >= min) {
+          _repSequence.add(current);
+          current -= inc;
+        }
+        if (_repSequence.last != min) _repSequence.add(min);
+      }
+    } else {
+      int current = max;
+      while (current >= min) {
+        _repSequence.add(current);
+        current -= inc;
+      }
+      if (_repSequence.last != min) _repSequence.add(min);
+    }
+  }
+
+  int _getTargetRepsForCurrentSet() {
+    int idx = widget.progress.currentSetIdx - 1;
+    if (idx >= 0 && idx < _repSequence.length) return _repSequence[idx];
+    return 0;
+  }
+
+  void _onDone() {
+    final reps = int.tryParse(_repsController.text);
+    if (reps == null) return;
+    FocusScope.of(context).unfocus();
+    final log = WorkoutLogEntry(
+      exerciseName: widget.exercise.name,
+      exerciseType: ExerciseType.pyramid,
+      setIndex: widget.progress.currentSetIdx,
+      repsCompleted: reps,
+      weightAdded: widget.exercise.weight,
+      restTimeSeconds: widget.exercise.restSeconds,
+    );
+    _completeSetOrExercise(
+      widget.provider,
+      widget.progress,
+      widget.session,
+      log,
+      _repSequence.length,
+      widget.exercise.restSeconds,
+    );
+
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted && widget.progress.currentSetIdx < _repSequence.length) {
+        _repsController.text = _repSequence[widget.progress.currentSetIdx]
+            .toString();
+      }
+    });
+  }
+
+  void _skipRest() {
+    final isLastSet = widget.progress.currentSetIdx >= _repSequence.length;
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        isResting: false,
+        restEndTime: 0,
+        currentSetIdx: isLastSet ? 1 : widget.progress.currentSetIdx + 1,
+        currentExIdx: isLastSet
+            ? widget.progress.currentExIdx + 1
+            : widget.progress.currentExIdx,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final totalSets = _repSequence.length;
+    final targetReps = _getTargetRepsForCurrentSet();
+    final weightLabel = widget.exercise.weight > 0
+        ? " @ ${widget.exercise.weight} kg"
+        : "";
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "STEP ${widget.progress.currentSetIdx}/$totalSets • $targetReps TARGET REPS$weightLabel",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
+        ),
+        if (widget.progress.isResting) ...[
+          RestTimer(
+            endTime: widget.progress.restEndTime,
+            totalSec: widget.exercise.restSeconds,
+            onFinish: _skipRest,
+          ),
+          SizedBox(
+            width: double.infinity,
+            height: 64,
+            child: OutlinedButton(
+              onPressed: _skipRest,
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                side: BorderSide(
+                  color: colorScheme.surfaceContainerHighest,
+                  width: 2,
+                ),
+              ),
+              child: Text(
+                "SKIP RECOVERY",
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.onSurface,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 40),
+          Builder(
+            builder: (context) {
+              final isLastSet =
+                  widget.progress.currentSetIdx >= _repSequence.length;
+              final nextExIdx = isLastSet
+                  ? widget.progress.currentExIdx + 1
+                  : widget.progress.currentExIdx;
+              if (nextExIdx < widget.session.exercises.length) {
+                return UpcomingExerciseCard(
+                  exercise: widget.session.exercises[nextExIdx],
+                  titleLabel: isLastSet ? "UP NEXT" : "NEXT STEP",
+                  nextSetIndex: isLastSet
+                      ? null
+                      : widget.progress.currentSetIdx + 1,
+                  totalSets: isLastSet ? null : _repSequence.length,
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ] else ...[
+          const SizedBox(height: 40),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: isLight
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                      ),
+                    ]
+                  : null,
+              border: isLight
+                  ? null
+                  : Border.all(color: colorScheme.surfaceContainerHighest),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  "REPS COMPLETED",
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _repsController,
+                  keyboardType: TextInputType.number,
+                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                    fontSize: 80,
+                    height: 1,
+                    color: colorScheme.primary,
+                  ),
+                  decoration: _digitalInputDecoration(colorScheme),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+          SizedBox(
+            width: double.infinity,
+            height: 64,
+            child: FilledButton(
+              onPressed: _onDone,
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: const Text(
+                "LOG STEP",
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class MultiEmomWorkoutView extends StatefulWidget {
+  final MultiEmom exercise;
+  final SessionProgress progress;
+  final SessionProvider provider;
+  final Session session;
+  const MultiEmomWorkoutView({
+    super.key,
+    required this.exercise,
+    required this.progress,
+    required this.provider,
+    required this.session,
+  });
+  @override
+  State<MultiEmomWorkoutView> createState() => _MultiEmomWorkoutViewState();
+}
+
+class _MultiEmomWorkoutViewState extends State<MultiEmomWorkoutView> {
+  bool _isStarted = false;
+  int _endTime = 0;
+
+  int get _totalIntervals =>
+      widget.exercise.minutes.length * widget.exercise.totalRounds;
+
+  EmomMinuteGroup get _currentMinuteData {
+    if (widget.exercise.minutes.isEmpty) {
+      return EmomMinuteGroup(minuteIndex: 1, movements: []);
+    }
+    return widget.exercise.minutes[(widget.progress.currentSetIdx - 1) %
+        widget.exercise.minutes.length];
+  }
+
+  void _startEmom() {
+    if (widget.exercise.minutes.isEmpty) return;
+    setState(() {
+      _isStarted = true;
+      _endTime =
+          DateTime.now().millisecondsSinceEpoch +
+          (widget.exercise.everyXSeconds * 1000);
+    });
+  }
+
+  void _onMinuteFinished() {
+    final currentMin = widget.progress.currentSetIdx;
+    if (currentMin < _totalIntervals) {
+      setState(
+        () => _endTime =
+            DateTime.now().millisecondsSinceEpoch +
+            (widget.exercise.everyXSeconds * 1000),
+      );
+      widget.provider.updateProgress(
+        widget.progress.copyWith(currentSetIdx: currentMin + 1),
+      );
+    } else {
+      _finishExercise();
+    }
+  }
+
+  void _finishExercise() {
+    int totalRepsDone = 0;
+    for (var mGroup in widget.exercise.minutes) {
+      totalRepsDone += mGroup.movements.fold(0, (sum, m) => sum + m.reps);
+    }
+    totalRepsDone *= widget.exercise.totalRounds;
+
+    final log = WorkoutLogEntry(
+      exerciseName: widget.exercise.name,
+      exerciseType: ExerciseType.multiEmom,
+      setIndex: 1,
+      repsCompleted: totalRepsDone,
+      durationSeconds: _totalIntervals * widget.exercise.everyXSeconds,
+    );
+    _completeSetOrExercise(
+      widget.provider,
+      widget.progress.copyWith(currentSetIdx: _totalIntervals),
+      widget.session,
+      log,
+      _totalIntervals,
+      0,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final currentGroup = _currentMinuteData;
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "ROUND ${widget.progress.currentSetIdx}/$_totalIntervals • EVERY ${widget.exercise.everyXSeconds} SEC",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
+        ),
+        const SizedBox(height: 32),
+
+        if (!_isStarted) ...[
+          ...widget.exercise.minutes.map(
+            (mGroup) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 8, bottom: 8),
+                  child: Text(
+                    "MINUTE ${mGroup.minuteIndex}",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: colorScheme.primary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: isLight
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 20,
+                            ),
+                          ]
+                        : null,
+                    border: isLight
+                        ? null
+                        : Border.all(
+                            color: colorScheme.surfaceContainerHighest,
+                          ),
+                  ),
+                  child: Column(
+                    children: mGroup.movements.isEmpty
+                        ? [
+                            const Text(
+                              "REST / NO MOVEMENTS",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ]
+                        : mGroup.movements
+                              .map(
+                                (mov) => Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.primary.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          "${mov.reps}x",
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            color: colorScheme.primary,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Text(
+                                          "${mov.name.toUpperCase()}${mov.weight > 0 ? " @ ${mov.weight}kg" : ""}",
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 64,
+            child: FilledButton(
+              onPressed: _startEmom,
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: const Text(
+                "START CIRCUIT",
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+          ),
+        ] else ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: isLight
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                      ),
+                    ]
+                  : null,
+              border: isLight
+                  ? null
+                  : Border.all(color: colorScheme.surfaceContainerHighest),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  "MINUTE ${currentGroup.minuteIndex}",
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ...currentGroup.movements.map(
+                  (m) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "${m.reps}x",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: colorScheme.primary,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            m.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (currentGroup.movements.isEmpty)
+                  const Text(
+                    "REST / NO MOVEMENTS",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Colors.grey,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+          RestTimer(
+            key: ValueKey(_endTime),
+            endTime: _endTime,
+            totalSec: widget.exercise.everyXSeconds,
+            onFinish: _onMinuteFinished,
+            isCountdownStyle: true,
+          ),
+          const SizedBox(height: 40),
+          Builder(
+            builder: (context) {
+              final currentMinTotal = widget.progress.currentSetIdx;
+              if (currentMinTotal < _totalIntervals) {
+                final nextMinuteData = widget
+                    .exercise
+                    .minutes[currentMinTotal % widget.exercise.minutes.length];
+                String summary = nextMinuteData.movements.isEmpty
+                    ? "REST"
+                    : nextMinuteData.movements
+                          .map((m) => "${m.reps}x ${m.name}")
+                          .join(" • ");
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: colorScheme.surfaceContainerHighest,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "UP NEXT",
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: colorScheme.primary,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        "MINUTE ${nextMinuteData.minuteIndex}",
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        summary,
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                final nextExIdx = widget.progress.currentExIdx + 1;
+                if (nextExIdx < widget.session.exercises.length) {
+                  return UpcomingExerciseCard(
+                    exercise: widget.session.exercises[nextExIdx],
+                    titleLabel: "UP NEXT",
+                  );
+                }
+                return const SizedBox.shrink();
+              }
+            },
+          ),
+          const SizedBox(height: 32),
+          TextButton(
+            onPressed: _finishExercise,
+            child: Text(
+              "END EARLY",
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class _RestBlockWorkoutViewState extends State<RestBlockWorkoutView> {
@@ -2470,12 +3607,22 @@ class _RestBlockWorkoutViewState extends State<RestBlockWorkoutView> {
     if (!widget.progress.isResting) return const SizedBox.shrink();
     return Column(
       children: [
-        Text(
-          "REST BLOCK",
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: Theme.of(context).colorScheme.secondary,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            "REST BLOCK",
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2,
+            ),
           ),
         ),
+        const SizedBox(height: 24),
         RestTimer(
           endTime: widget.progress.restEndTime,
           totalSec: widget.exercise.restSeconds,
@@ -2483,21 +3630,29 @@ class _RestBlockWorkoutViewState extends State<RestBlockWorkoutView> {
         ),
         SizedBox(
           width: double.infinity,
-          height: 56,
+          height: 64,
           child: OutlinedButton(
             onPressed: _skipRest,
             style: OutlinedButton.styleFrom(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                width: 2,
               ),
             ),
-            child: const Text(
+            child: Text(
               "SKIP RECOVERY",
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: Theme.of(context).colorScheme.onSurface,
+                letterSpacing: 1,
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 40),
         Builder(
           builder: (context) {
             final nextExIdx = widget.progress.currentExIdx + 1;
@@ -2576,32 +3731,54 @@ class _RestTimerState extends State<RestTimer> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final progressRatio = widget.totalSec > 0
         ? (_timeLeft / widget.totalSec).clamp(0.0, 1.0)
         : 0.0;
     final actualProgress = widget.isCountdownStyle
         ? (1.0 - progressRatio)
         : progressRatio;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
+      padding: const EdgeInsets.symmetric(vertical: 40),
       child: Stack(
         alignment: Alignment.center,
         children: [
+          Container(
+            width: 240,
+            height: 240,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: colorScheme.surface,
+              boxShadow: isLight
+                  ? [
+                      BoxShadow(
+                        color: colorScheme.primary.withValues(alpha: 0.1),
+                        blurRadius: 40,
+                        spreadRadius: 10,
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
           SizedBox(
-            width: 220,
-            height: 220,
+            width: 240,
+            height: 240,
             child: CircularProgressIndicator(
               value: actualProgress,
-              strokeWidth: 8,
+              strokeWidth: 12,
               strokeCap: StrokeCap.round,
               color: colorScheme.primary,
-              backgroundColor: colorScheme.surfaceContainerHighest,
+              backgroundColor: colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.5,
+              ),
             ),
           ),
           Text(
             formattedTime,
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              fontSize: 72,
+              fontSize: 80,
+              color: colorScheme.onSurface,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
@@ -2627,14 +3804,15 @@ class UpcomingExerciseCard extends StatelessWidget {
   String _getSummary() {
     final ex = exercise;
     if (nextSetIndex != null && totalSets != null) {
-      // Continuation of the same exercise
       if (ex is Classic) return "Set $nextSetIndex of $totalSets";
+      if (ex is Pyramid) return "Step $nextSetIndex of $totalSets";
       if (ex is IsoMax) return "Hold @ ${ex.weight}kg";
       if (ex is Circuit) return "Circuit round";
       return "Next set";
     } else {
-      // Start of a new exercise
       if (ex is Classic) return "${ex.sets}x${ex.reps} @ ${ex.weight}kg";
+      if (ex is Pyramid) return "PYRAMID - MAX ${ex.maxReps} REPS";
+      if (ex is MultiEmom) return "MULTI-EMOM - ${ex.totalRounds} CIRCUITS";
       if (ex is Amrap) return "AMRAP - ${ex.timeCapMinutes} MIN";
       if (ex is Emom) return "EMOM - ${ex.totalRounds} ROUNDS";
       if (ex is RestPause) return "REST-PAUSE - ${ex.microSets} SETS";
@@ -2650,37 +3828,59 @@ class UpcomingExerciseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final summary = _getSummary();
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.surfaceContainerHighest),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isLight
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ]
+            : null,
+        border: isLight
+            ? null
+            : Border.all(color: colorScheme.surfaceContainerHighest),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            titleLabel,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: colorScheme.secondary),
+          Row(
+            children: [
+              Icon(Icons.forward_rounded, color: colorScheme.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                titleLabel,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colorScheme.primary,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           Text(
             exercise.name.toUpperCase(),
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           if (summary.isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Text(
               summary,
               style: TextStyle(
                 color: colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
               ),
             ),
           ],
@@ -2703,35 +3903,49 @@ class SummaryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final Map<String, List<WorkoutLogEntry>> groupedLogs = {};
     for (var log in logs) {
       groupedLogs.putIfAbsent(log.exerciseName, () => []).add(log);
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.surfaceContainerHighest),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: isLight
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 20,
+                ),
+              ]
+            : null,
+        border: isLight
+            ? null
+            : Border.all(color: colorScheme.surfaceContainerHighest),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             "WORKOUT SUMMARY",
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: colorScheme.secondary),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colorScheme.primary,
+              letterSpacing: 2,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           Text(
             title.toUpperCase(),
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           ...groupedLogs.entries.map((entry) {
             final exLogs = entry.value;
             if (exLogs.isEmpty ||
@@ -2754,6 +3968,13 @@ class SummaryView extends StatelessWidget {
                   detailsStr =
                       "$setsCount SETS • ${exLogs.map((l) => "${l.repsCompleted}${l.weightAdded > 0 ? " @ ${l.weightAdded}kg" : ""}").join(" / ")}";
                 }
+                break;
+              case ExerciseType.pyramid:
+                detailsStr =
+                    "$setsCount SETS • PYRAMID [${exLogs.map((l) => l.repsCompleted).join("-")}] REPS";
+                break;
+              case ExerciseType.multiEmom:
+                detailsStr = "1 SET • CIRCUIT EMOM COMPLETED";
                 break;
               case ExerciseType.isoMax:
               case ExerciseType.isoPositions:
@@ -2786,19 +4007,24 @@ class SummaryView extends StatelessWidget {
             }
 
             return Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     entry.key.toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
                     detailsStr,
                     style: TextStyle(
                       color: colorScheme.onSurfaceVariant,
-                      fontSize: 12,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -2807,10 +4033,10 @@ class SummaryView extends StatelessWidget {
           }),
           const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
               children: [
@@ -2818,14 +4044,17 @@ class SummaryView extends StatelessWidget {
                   "TOTAL TIME",
                   style: TextStyle(
                     color: colorScheme.primary,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w900,
                     fontSize: 12,
+                    letterSpacing: 1.5,
                   ),
                 ),
+                const SizedBox(height: 8),
                 Text(
                   totalTime,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                     color: colorScheme.primary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ],

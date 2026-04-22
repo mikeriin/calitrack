@@ -53,7 +53,6 @@ class LevelingProvider extends ChangeNotifier {
     int durationMillis,
   ) async {
     // 1. Vérification anti-triche : 30 minutes = 30 * 60 * 1000 millisecondes
-    // (Tu peux baisser ce chiffre pour faire tes tests de débug !)
     if (durationMillis < 1800000) {
       return 0.0; // Pas d'XP si la séance est trop courte
     }
@@ -66,12 +65,14 @@ class LevelingProvider extends ChangeNotifier {
 
       switch (log.exerciseType) {
         case ExerciseType.classic:
+        case ExerciseType.pyramid:
         case ExerciseType.circuit:
         case ExerciseType.restPause:
         case ExerciseType.amrap:
           baseLogXp = log.repsCompleted * 10.0;
           break;
         case ExerciseType.emom:
+        case ExerciseType.multiEmom:
         case ExerciseType.cluster:
           baseLogXp = log.repsCompleted * 12.0;
           break;
@@ -112,20 +113,10 @@ class LevelingProvider extends ChangeNotifier {
   void _checkMilestones(SessionProvider sessionProvider) {
     // Définition des paliers et récompenses
     final milestones = {
-      5: _MilestoneReward(
-        coins: 200,
-        sessionName: "SPARTAN AWAKENING",
-        day: Day.saturday,
-      ),
       10: _MilestoneReward(
         coins: 500,
-        sessionName: "TITAN STRENGTH",
-        day: Day.sunday,
-      ),
-      20: _MilestoneReward(
-        coins: 1000,
-        sessionName: "OLYMPIAN CONDITIONING",
-        day: Day.monday,
+        sessionName: "BEGINNER",
+        day: Day.saturday,
       ),
     };
 

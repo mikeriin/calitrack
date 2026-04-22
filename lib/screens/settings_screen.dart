@@ -2,133 +2,21 @@
 
 import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
-// import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-// import 'package:permission_handler/permission_handler.dart';
-// import 'package:provider/provider.dart';
 import '../main.dart';
-// import '../viewmodels/session_provider.dart';
-// import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
-
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // bool _isScanningGarmin = false;
-
   Future<void> _selectFolder() async {
     final String? directoryPath = await getDirectoryPath();
     if (directoryPath != null) {
       await progressRepository.setDataFolder(directoryPath);
     }
   }
-
-  // Logic to scan and find a Garmin watch
-  /*Future<void> _toggleGarminConnection(bool val) async {
-    if (!val) {
-      await progressRepository.setGarminLinked(false);
-      return;
-    }
-
-    // Request Bluetooth permissions
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-      Permission.location, // Often required for BLE on Android
-    ].request();
-
-    if (!mounted) return; // <-- Good practice after an await
-
-    if (statuses[Permission.bluetoothScan]!.isDenied ||
-        statuses[Permission.bluetoothConnect]!.isDenied) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Bluetooth permissions required.")),
-      );
-      return;
-    }
-
-    setState(() => _isScanningGarmin = true);
-
-    bool found = false;
-
-    // Scan for 5 seconds
-    FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
-
-    var subscription = FlutterBluePlus.onScanResults.listen((results) async {
-      for (ScanResult r in results) {
-        if (r.device.platformName.toLowerCase().contains("garmin")) {
-          found = true;
-          FlutterBluePlus.stopScan();
-          await progressRepository.setGarminLinked(
-            true,
-            deviceName: r.device.platformName,
-          );
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Connected to: ${r.device.platformName}")),
-            );
-          }
-          break;
-        }
-      }
-    });
-
-    await Future.delayed(const Duration(seconds: 5));
-    FlutterBluePlus.stopScan();
-    subscription.cancel();
-
-    if (!mounted) return; // <-- Good practice after an await
-
-    if (!found) {
-      await progressRepository.setGarminLinked(false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("No Garmin device detected nearby."),
-        ),
-      );
-    }
-
-    setState(() => _isScanningGarmin = false);
-  }*/
-
-  // Logic for notifications (FIXED)
-  // Future<void> _toggleNotifications(bool val) async {
-  //   await progressRepository.setDailyNotifications(val);
-
-  //   if (val) {
-  //     // Request notification permission (iOS/Android 13+)
-  //     await Permission.notification.request();
-
-  //     if (mounted && Theme.of(context).platform == TargetPlatform.android) {
-  //       await Permission.scheduleExactAlarm.request();
-  //     }
-
-  //     // Ensure the widget is still mounted after the await
-  //     if (!mounted) return;
-
-  //     // Fetch all sessions to schedule them
-  //     final sessions = Provider.of<SessionProvider>(
-  //       context,
-  //       listen: false,
-  //     ).allSessions;
-
-  //     await notificationService.scheduleWorkoutNotifications(sessions);
-
-  //     // Verify once more before updating the UI
-  //     if (!mounted) return;
-
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content: Text("Notifications enabled for 06:00 AM on workout days!"),
-  //       ),
-  //     );
-  //   } else {
-  //     await notificationService.cancelAllNotifications();
-  //   }
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +27,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text("SETTINGS", style: TextStyle(color: colorScheme.onSurface)),
+        title: Text(
+          "SETTINGS",
+          style: TextStyle(
+            color: colorScheme.onSurface,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.0,
+          ),
+        ),
       ),
       body: SafeArea(
         child: StreamBuilder<void>(
@@ -147,9 +42,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           builder: (context, _) {
             return ListView(
               padding: const EdgeInsets.symmetric(
-                horizontal: 20.0,
-                vertical: 12.0,
+                horizontal: 24.0,
+                vertical: 24.0,
               ),
+              physics: const BouncingScrollPhysics(),
               children: [
                 _buildSectionTitle(context, "APPEARANCE"),
                 _buildSettingsCard(
@@ -162,7 +58,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         children: [
                           Text(
                             "DARK MODE",
-                            style: Theme.of(context).textTheme.titleMedium,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -178,11 +75,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         value: progressRepository.isDarkMode,
                         onChanged: (val) => progressRepository.setDarkMode(val),
                         activeThumbColor: colorScheme.primary,
+                        activeTrackColor: colorScheme.primary.withValues(
+                          alpha: 0.3,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 40),
 
                 _buildSectionTitle(context, "STORAGE & DATA"),
                 _buildSettingsCard(
@@ -192,106 +92,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       Text(
                         "REFERENCE DATA FOLDER",
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         progressRepository.dataFolder ?? "Default (Downloads)",
                         style: TextStyle(
                           color: colorScheme.onSurfaceVariant,
-                          fontSize: 13,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed:
-                            _selectFolder, // Fixed: no longer need to pass context
-                        icon: const Icon(Icons.folder_open_rounded, size: 20),
-                        label: const Text("SELECT FOLDER"),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                          side: BorderSide(color: colorScheme.primary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // SECTION: INTEGRATIONS (Modified for Garmin)
-                /*_buildSectionTitle(context, "INTEGRATIONS"),
-                _buildSettingsCard(
-                  context: context,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "GARMIN CONNECT",
-                              style: Theme.of(context).textTheme.titleMedium,
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: OutlinedButton.icon(
+                          onPressed: _selectFolder,
+                          icon: const Icon(Icons.folder_open_rounded, size: 24),
+                          label: const Text(
+                            "SELECT FOLDER",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              progressRepository.isGarminLinked
-                                  ? (progressRepository.garminDeviceName ??
-                                        "LINKED")
-                                  : "UNLINKED",
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(
-                                    color: progressRepository.isGarminLinked
-                                        ? const Color(0xFF10B981)
-                                        : colorScheme.error,
-                                  ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_isScanningGarmin)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 12.0),
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
                           ),
-                        )
-                      else
-                        Switch(
-                          value: progressRepository.isGarminLinked,
-                          onChanged: _isScanningGarmin
-                              ? null
-                              : _toggleGarminConnection,
-                          activeThumbColor: const Color(0xFF10B981),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colorScheme.primary,
+                            side: BorderSide(
+                              color: colorScheme.primary,
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
                         ),
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),*/
+                const SizedBox(height: 40),
+
                 _buildSectionTitle(context, "WORKOUT PREFERENCES"),
                 _buildSettingsCard(
                   context: context,
                   child: Column(
                     children: [
-                      // Row(
-                      //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      //   children: [
-                      //     Expanded(
-                      //       child: Text(
-                      //         "DAILY NOTIFICATIONS (06:00 AM)",
-                      //         style: Theme.of(context).textTheme.titleMedium,
-                      //       ),
-                      //     ),
-                      //     Switch(
-                      //       value: progressRepository.dailyNotifications,
-                      //       onChanged: _toggleNotifications, // Fixed here
-                      //       activeThumbColor: colorScheme.primary,
-                      //     ),
-                      //   ],
-                      // ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -301,9 +149,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               children: [
                                 Text(
                                   "KEEP SCREEN AWAKE",
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w900),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
@@ -321,6 +168,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             onChanged: (val) =>
                                 progressRepository.setKeepAwake(val),
                             activeThumbColor: colorScheme.primary,
+                            activeTrackColor: colorScheme.primary.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                         ],
                       ),
@@ -337,13 +187,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0, left: 4.0),
+      padding: const EdgeInsets.only(bottom: 16.0, left: 8.0),
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 2.0,
         ),
       ),
     );
@@ -354,15 +204,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required Widget child,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Container(
-      padding: const EdgeInsets.all(20.0),
+      padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.surfaceContainerHighest,
-          width: 1,
-        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: isLight
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+        border: isLight
+            ? null
+            : Border.all(color: colorScheme.surfaceContainerHighest),
       ),
       child: child,
     );

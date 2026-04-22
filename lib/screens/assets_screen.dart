@@ -1,5 +1,7 @@
 // lib/screens/assets_screen.dart
 
+// ignore_for_file: curly_braces_in_flow_control_structures
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -18,10 +20,8 @@ class AssetsScreen extends StatelessWidget {
       String? defaultPath;
       if (customFolder != null && customFolder.isNotEmpty) {
         defaultPath = customFolder;
-      } else if (Platform.isAndroid) {
-        final dir = await getDownloadsDirectory();
-        defaultPath = dir?.path;
-      }
+      } else if (Platform.isAndroid)
+        defaultPath = (await getDownloadsDirectory())?.path;
 
       const XTypeGroup jsonType = XTypeGroup(
         label: 'JSON Files',
@@ -40,8 +40,15 @@ class AssetsScreen extends StatelessWidget {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text("Assets imported successfully!"),
+            content: const Text(
+              "Assets imported successfully!",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             backgroundColor: Theme.of(context).colorScheme.primary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -49,8 +56,15 @@ class AssetsScreen extends StatelessWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text("Import failed. Invalid file format."),
+          content: const Text(
+            "Import failed. Invalid file format.",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -79,8 +93,15 @@ class AssetsScreen extends StatelessWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Saved to $targetDir/$fileName'),
+              content: Text(
+                'Saved to $targetDir/$fileName',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               backgroundColor: Theme.of(context).colorScheme.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -90,8 +111,15 @@ class AssetsScreen extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Export failed.'),
+            content: const Text(
+              'Export failed.',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             backgroundColor: Theme.of(context).colorScheme.error,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -109,30 +137,50 @@ class AssetsScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           elevation: 0,
-          title: const Text(
+          title: Text(
             "ASSETS",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 24,
+              letterSpacing: 1.0,
+              color: colorScheme.onSurface,
+            ),
           ),
           centerTitle: false,
           actions: [
             IconButton(
-              icon: const Icon(Icons.file_download_outlined),
+              icon: Icon(
+                Icons.file_download_outlined,
+                color: colorScheme.primary,
+              ),
               tooltip: "Import Assets (.json)",
               onPressed: () => _handleImportAssets(context),
-            ),
-            IconButton(
-              icon: const Icon(Icons.ios_share_rounded),
-              tooltip: "Export All Assets (.json)",
-              onPressed: () => _handleExportAssets(context),
+              style: IconButton.styleFrom(
+                backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
+              ),
             ),
             const SizedBox(width: 8),
+            IconButton(
+              icon: Icon(Icons.ios_share_rounded, color: colorScheme.primary),
+              tooltip: "Export All Assets (.json)",
+              onPressed: () => _handleExportAssets(context),
+              style: IconButton.styleFrom(
+                backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
+              ),
+            ),
+            const SizedBox(width: 16),
           ],
           bottom: TabBar(
             labelColor: colorScheme.primary,
             unselectedLabelColor: colorScheme.onSurfaceVariant,
             indicatorColor: colorScheme.primary,
-            indicatorWeight: 2,
+            indicatorWeight: 4,
+            indicatorSize: TabBarIndicatorSize.tab,
             dividerColor: colorScheme.surfaceContainerHighest,
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
+            ),
             tabs: const [
               Tab(text: "EXERCISES"),
               Tab(text: "CONDITIONS"),
@@ -149,7 +197,6 @@ class AssetsScreen extends StatelessWidget {
 
 class _ExercisesTabView extends StatefulWidget {
   const _ExercisesTabView();
-
   @override
   State<_ExercisesTabView> createState() => _ExercisesTabViewState();
 }
@@ -161,12 +208,9 @@ class _ExercisesTabViewState extends State<_ExercisesTabView> {
   Widget build(BuildContext context) {
     final provider = context.watch<AssetProvider>();
     final allAssets = provider.assets;
-
-    // Filtrage
     final assets = _selectedFilter == null
         ? allAssets
         : allAssets.where((a) => a.type == _selectedFilter).toList();
-
     final colorScheme = Theme.of(context).colorScheme;
     final bool isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
@@ -175,34 +219,29 @@ class _ExercisesTabViewState extends State<_ExercisesTabView> {
       floatingActionButton: isKeyboardOpen
           ? null
           : FloatingActionButton.extended(
-              onPressed: () {
-                provider.addAsset(
-                  AssetExercise(
-                    name: "New Exercise",
-                    type: ExerciseType.classic,
-                  ),
-                );
-              },
+              onPressed: () => provider.addAsset(
+                AssetExercise(name: "New Exercise", type: ExerciseType.classic),
+              ),
               backgroundColor: colorScheme.primary,
               foregroundColor: colorScheme.onPrimary,
-              elevation: 0,
+              elevation: 8,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
               ),
-              icon: const Icon(Icons.fitness_center_rounded, size: 20),
+              icon: const Icon(Icons.fitness_center_rounded, size: 24),
               label: const Text(
                 "NEW EXERCISE",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
               ),
             ),
       body: Column(
         children: [
-          // Barre de filtres horizontale
           SizedBox(
-            height: 60,
+            height: 72,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              physics: const BouncingScrollPhysics(),
               children: [
                 _buildFilterChip("ALL", null, colorScheme),
                 ...ExerciseType.values.map(
@@ -217,7 +256,8 @@ class _ExercisesTabViewState extends State<_ExercisesTabView> {
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.all(20).copyWith(bottom: 100, top: 0),
+              padding: const EdgeInsets.all(24).copyWith(bottom: 120, top: 0),
+              physics: const BouncingScrollPhysics(),
               itemCount: assets.length,
               itemBuilder: (context, index) {
                 final asset = assets[index];
@@ -242,25 +282,32 @@ class _ExercisesTabViewState extends State<_ExercisesTabView> {
   ) {
     final isSelected = _selectedFilter == type;
     return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
+      padding: const EdgeInsets.only(right: 12.0),
       child: FilterChip(
         label: Text(
           label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+          ),
         ),
         selected: isSelected,
         onSelected: (_) => setState(() => _selectedFilter = type),
         backgroundColor: colorScheme.surfaceContainerHighest.withValues(
           alpha: 0.5,
         ),
-        selectedColor: colorScheme.primary.withValues(alpha: 0.2),
-        checkmarkColor: colorScheme.primary,
+        selectedColor: colorScheme.primary,
+        checkmarkColor: colorScheme.onPrimary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
     );
   }
 }
 
+// ... (vers la ligne 218)
 class _ConditionsTabView extends StatelessWidget {
   const _ConditionsTabView();
 
@@ -268,7 +315,7 @@ class _ConditionsTabView extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<AssetProvider>();
     final conditions = provider.conditions;
-    final accentColor = const Color(0xFF10B981);
+    // final colorScheme = Theme.of(context).colorScheme;
     final bool isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
@@ -276,31 +323,30 @@ class _ConditionsTabView extends StatelessWidget {
       floatingActionButton: isKeyboardOpen
           ? null
           : FloatingActionButton.extended(
-              onPressed: () {
-                provider.addCondition(
-                  ProgressionCondition(
-                    name: "New Condition",
-                    type: ProgressionType.linearWeight,
-                    targetSets: 0,
-                    targetReps: 0,
-                    weightIncrement: 0.0,
-                  ),
-                );
-              },
-              backgroundColor: accentColor,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+              onPressed: () => provider.addCondition(
+                ProgressionCondition(
+                  name: "New Condition",
+                  type: ProgressionType.linearWeight,
+                  targetSets: 0,
+                  targetReps: 0,
+                  weightIncrement: 0.0,
+                ),
               ),
-              icon: const Icon(Icons.trending_up_rounded, size: 20),
+              backgroundColor: Colors.green, // <--- Modifié ici
+              foregroundColor: Colors.white, // <--- Assure un bon contraste
+              elevation: 8,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              icon: const Icon(Icons.trending_up_rounded, size: 24),
               label: const Text(
                 "NEW CONDITION",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
               ),
             ),
       body: ListView.builder(
-        padding: const EdgeInsets.all(20).copyWith(bottom: 100),
+        padding: const EdgeInsets.all(24).copyWith(bottom: 120),
+        physics: const BouncingScrollPhysics(),
         itemCount: conditions.length,
         itemBuilder: (context, index) {
           final condition = conditions[index];
@@ -309,7 +355,7 @@ class _ConditionsTabView extends StatelessWidget {
             condition: condition,
             onDelete: () => provider.deleteCondition(condition.id),
             onUpdate: (updated) => provider.updateCondition(updated),
-            accentColor: accentColor,
+            accentColor: Colors.green, // <--- Modifié ici
           );
         },
       ),
@@ -317,18 +363,30 @@ class _ConditionsTabView extends StatelessWidget {
   }
 }
 
+// Helper pour Input
+InputDecoration _buildInputDeco(String label, ColorScheme colorScheme) {
+  return InputDecoration(
+    labelText: label,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide.none,
+    ),
+    filled: true,
+    fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+    isDense: true,
+  );
+}
+
 class AssetCard extends StatefulWidget {
   final AssetExercise asset;
   final VoidCallback onDelete;
   final ValueChanged<AssetExercise> onUpdate;
-
   const AssetCard({
     super.key,
     required this.asset,
     required this.onDelete,
     required this.onUpdate,
   });
-
   @override
   State<AssetCard> createState() => _AssetCardState();
 }
@@ -374,16 +432,29 @@ class _AssetCardState extends State<AssetCard> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isLight
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
         border: Border.all(
           color: _isExpanded
               ? colorScheme.primary
-              : colorScheme.surfaceContainerHighest,
+              : (isLight
+                    ? Colors.transparent
+                    : colorScheme.surfaceContainerHighest),
+          width: _isExpanded ? 2 : 1,
         ),
       ),
       child: Theme(
@@ -397,20 +468,33 @@ class _AssetCardState extends State<AssetCard> {
               });
             }
           },
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          leading: Icon(
-            widget.asset.type == ExerciseType.restBlock
-                ? Icons.timer_rounded
-                : Icons.fitness_center_rounded,
-            color: colorScheme.onSurfaceVariant,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          leading: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              widget.asset.type == ExerciseType.restBlock
+                  ? Icons.timer_rounded
+                  : Icons.fitness_center_rounded,
+              color: colorScheme.primary,
+            ),
           ),
           title: Text(
             widget.asset.name.toUpperCase(),
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
           ),
           subtitle: Text(
             widget.asset.type.label,
-            style: TextStyle(color: colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           trailing: IconButton(
             icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
@@ -418,30 +502,29 @@ class _AssetCardState extends State<AssetCard> {
             style: IconButton.styleFrom(
               backgroundColor: colorScheme.error.withValues(alpha: 0.1),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               child: Column(
                 children: [
                   DropdownButtonFormField<ExerciseType>(
                     initialValue: _selectedType,
                     isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: "Format",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
-                    ),
+                    decoration: _buildInputDeco("Format", colorScheme),
                     items: ExerciseType.values
                         .map(
                           (type) => DropdownMenuItem(
                             value: type,
-                            child: Text(type.label),
+                            child: Text(
+                              type.label,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         )
                         .toList(),
@@ -452,13 +535,8 @@ class _AssetCardState extends State<AssetCard> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: "Exercise Name",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    decoration: _buildInputDeco("Exercise Name", colorScheme),
                   ),
                 ],
               ),
@@ -475,7 +553,6 @@ class ConditionCard extends StatefulWidget {
   final VoidCallback onDelete;
   final ValueChanged<ProgressionCondition> onUpdate;
   final Color accentColor;
-
   const ConditionCard({
     super.key,
     required this.condition,
@@ -483,7 +560,6 @@ class ConditionCard extends StatefulWidget {
     required this.onUpdate,
     required this.accentColor,
   });
-
   @override
   State<ConditionCard> createState() => _ConditionCardState();
 }
@@ -555,16 +631,29 @@ class _ConditionCardState extends State<ConditionCard> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isLight
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
         border: Border.all(
           color: _isExpanded
               ? widget.accentColor
-              : colorScheme.surfaceContainerHighest,
+              : (isLight
+                    ? Colors.transparent
+                    : colorScheme.surfaceContainerHighest),
+          width: _isExpanded ? 2 : 1,
         ),
       ),
       child: Theme(
@@ -578,15 +667,28 @@ class _ConditionCardState extends State<ConditionCard> {
               });
             }
           },
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          leading: Icon(Icons.trending_up_rounded, color: widget.accentColor),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          leading: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: widget.accentColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.trending_up_rounded, color: widget.accentColor),
+          ),
           title: Text(
             widget.condition.name.toUpperCase(),
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
           ),
           subtitle: Text(
             widget.condition.type.label,
-            style: TextStyle(color: colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -596,11 +698,11 @@ class _ConditionCardState extends State<ConditionCard> {
                 textAlign: TextAlign.right,
                 style: TextStyle(
                   color: widget.accentColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               IconButton(
                 icon: Icon(
                   Icons.delete_outline_rounded,
@@ -610,7 +712,7 @@ class _ConditionCardState extends State<ConditionCard> {
                 style: IconButton.styleFrom(
                   backgroundColor: colorScheme.error.withValues(alpha: 0.1),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -618,24 +720,23 @@ class _ConditionCardState extends State<ConditionCard> {
           ),
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               child: Column(
                 children: [
                   DropdownButtonFormField<ProgressionType>(
                     initialValue: _selectedType,
                     isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: "Type",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
-                    ),
+                    decoration: _buildInputDeco("Type", colorScheme),
                     items: ProgressionType.values
                         .map(
                           (type) => DropdownMenuItem(
                             value: type,
-                            child: Text(type.label),
+                            child: Text(
+                              type.label,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         )
                         .toList(),
@@ -643,62 +744,42 @@ class _ConditionCardState extends State<ConditionCard> {
                       if (val != null) setState(() => _selectedType = val);
                     },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: _nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: "Name",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    decoration: _buildInputDeco("Name", colorScheme),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
                           controller: _targetSetsCtrl,
                           keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: "Sets",
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            isDense: true,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          decoration: _buildInputDeco("Sets", colorScheme),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
                           controller: _targetRepsCtrl,
                           keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: "Reps",
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            isDense: true,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          decoration: _buildInputDeco("Reps", colorScheme),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: _weightIncrementCtrl,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: InputDecoration(
-                      labelText: "Inc. (kg)",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    decoration: _buildInputDeco("Inc. (kg)", colorScheme),
                   ),
                 ],
               ),

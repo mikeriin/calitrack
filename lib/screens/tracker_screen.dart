@@ -20,15 +20,17 @@ class TrackerScreen extends StatelessWidget {
     final Set<String> workedOutDates = provider.workedOutDates;
     final List<dynamic> fullHistory = provider.fullHistory;
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
-          ).copyWith(bottom: 100),
+            horizontal: 24,
+            vertical: 32,
+          ).copyWith(bottom: 120),
+          physics: const BouncingScrollPhysics(),
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -37,6 +39,7 @@ class TrackerScreen extends StatelessWidget {
                   "TRACKER",
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 IconButton(
@@ -44,26 +47,39 @@ class TrackerScreen extends StatelessWidget {
                   icon: Icon(
                     Icons.delete_sweep_rounded,
                     color: colorScheme.error,
+                    size: 28,
                   ),
                   style: IconButton.styleFrom(
                     backgroundColor: colorScheme.error.withValues(alpha: 0.1),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    padding: const EdgeInsets.all(12),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
             // HEATMAP
             Container(
               decoration: BoxDecoration(
                 color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colorScheme.surfaceContainerHighest),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: isLight
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : null,
+                border: isLight
+                    ? null
+                    : Border.all(color: colorScheme.surfaceContainerHighest),
               ),
-              padding: const EdgeInsets.all(20.0),
+              padding: const EdgeInsets.all(24.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -71,10 +87,11 @@ class TrackerScreen extends StatelessWidget {
                     "ACTIVITY (30 DAYS)",
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   _ConsistencyHeatmap(
                     workedOutDates: workedOutDates,
                     fullHistory: fullHistory,
@@ -84,17 +101,19 @@ class TrackerScreen extends StatelessWidget {
             ),
 
             if (exerciseCharts.isNotEmpty) ...[
-              const SizedBox(height: 40),
+              const SizedBox(height: 48),
               Text(
                 "EXERCISES LOGS",
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(color: colorScheme.onSurface),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               ...exerciseCharts.map((chartData) {
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
+                  padding: const EdgeInsets.only(bottom: 20.0),
                   child: _ExerciseExpandableCard(
                     chartData: chartData,
                     provider: provider,
@@ -104,14 +123,16 @@ class TrackerScreen extends StatelessWidget {
             ],
 
             if (fullHistory.isNotEmpty) ...[
-              const SizedBox(height: 40),
+              const SizedBox(height: 48),
               Text(
                 "SESSIONS HISTORY",
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(color: colorScheme.onSurface),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               ...fullHistory.map((fullSession) {
                 final sessionTitle = fullSession.session.title;
                 final date = DateFormat("dd MMM yyyy - HH:mm").format(
@@ -119,14 +140,25 @@ class TrackerScreen extends StatelessWidget {
                 );
 
                 return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16.0),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(20.0),
                   decoration: BoxDecoration(
                     color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: colorScheme.surfaceContainerHighest,
-                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: isLight
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
+                    border: isLight
+                        ? null
+                        : Border.all(
+                            color: colorScheme.surfaceContainerHighest,
+                          ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -138,15 +170,19 @@ class TrackerScreen extends StatelessWidget {
                             Text(
                               sessionTitle.toUpperCase(),
                               style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(color: colorScheme.primary),
+                                  ?.copyWith(
+                                    color: colorScheme.primary,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Text(
                               date.toUpperCase(),
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: colorScheme.onSurfaceVariant,
                                     fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
                                   ),
                             ),
                           ],
@@ -159,14 +195,14 @@ class TrackerScreen extends StatelessWidget {
                         icon: Icon(
                           Icons.delete_outline_rounded,
                           color: colorScheme.error,
-                          size: 20,
+                          size: 24,
                         ),
                         style: IconButton.styleFrom(
                           backgroundColor: colorScheme.error.withValues(
                             alpha: 0.1,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       ),
@@ -185,7 +221,6 @@ class TrackerScreen extends StatelessWidget {
 class _ConsistencyHeatmap extends StatelessWidget {
   final Set<String> workedOutDates;
   final List<dynamic> fullHistory;
-
   const _ConsistencyHeatmap({
     required this.workedOutDates,
     required this.fullHistory,
@@ -207,8 +242,8 @@ class _ConsistencyHeatmap extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 7,
-        crossAxisSpacing: 6,
-        mainAxisSpacing: 6,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
       ),
       itemCount: 30,
       itemBuilder: (context, index) {
@@ -239,8 +274,15 @@ class _ConsistencyHeatmap extends StatelessWidget {
             decoration: BoxDecoration(
               color: hasTrained
                   ? colorScheme.primary
-                  : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(4),
+                  : colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: hasTrained
+                  ? null
+                  : Border.all(
+                      color: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.5,
+                      ),
+                    ),
             ),
             alignment: Alignment.center,
             child: hasTrained
@@ -248,8 +290,8 @@ class _ConsistencyHeatmap extends StatelessWidget {
                     displayFormatter.format(date),
                     style: TextStyle(
                       color: colorScheme.onPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 10,
                     ),
                   )
                 : null,
@@ -275,14 +317,15 @@ class _ConsistencyHeatmap extends StatelessWidget {
         return AlertDialog(
           backgroundColor: colorScheme.surface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(24),
             side: BorderSide(color: colorScheme.surfaceContainerHighest),
           ),
           title: Text(
             formattedDate,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: colorScheme.primary,
+              fontWeight: FontWeight.w900,
+            ),
             textAlign: TextAlign.center,
           ),
           content: SingleChildScrollView(
@@ -294,7 +337,6 @@ class _ConsistencyHeatmap extends StatelessWidget {
                 final timeFormatted = DateFormat(
                   "HH:mm",
                 ).format(DateTime.fromMillisecondsSinceEpoch(session.date));
-                // Utilisation du formattedDuration ici !
                 final durationStr = session.formattedDuration;
 
                 return Column(
@@ -304,22 +346,23 @@ class _ConsistencyHeatmap extends StatelessWidget {
                       Divider(
                         color: colorScheme.surfaceContainerHighest,
                         thickness: 1,
-                        height: 24,
+                        height: 32,
                       ),
                     Text(
                       "${session.title.toUpperCase()} - $timeFormatted ($durationStr)",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     if (sessionData.exercises != null)
                       ...sessionData.exercises.map<Widget>((exWithSets) {
                         final exercise = exWithSets.exercise;
                         final setsCount = exWithSets.sets.length;
-
                         int totalReps = 0;
                         double maxWeight = 0;
-
                         for (var s in exWithSets.sets) {
                           totalReps += (s.repsCompleted as num).toInt();
                           if (s.weightAdded != null &&
@@ -327,15 +370,17 @@ class _ConsistencyHeatmap extends StatelessWidget {
                             maxWeight = (s.weightAdded as num).toDouble();
                           }
                         }
-
                         final weightStr = maxWeight > 0
                             ? " @ ${maxWeight}kg"
                             : "";
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
+                          padding: const EdgeInsets.only(bottom: 12.0),
                           child: Text(
                             "• ${exercise.name.toUpperCase()} ($setsCount sets, $totalReps reps$weightStr)",
-                            style: const TextStyle(fontSize: 12),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         );
                       }).toList(),
@@ -344,10 +389,27 @@ class _ConsistencyHeatmap extends StatelessWidget {
               }).toList(),
             ),
           ),
+          actionsPadding: const EdgeInsets.all(24),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("CLOSE"),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Text(
+                  "CLOSE",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
             ),
           ],
         );
@@ -374,70 +436,101 @@ class _ExerciseExpandableCardState extends State<_ExerciseExpandableCard> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final chartData = widget.chartData;
 
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        // SURBRILLANCE
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isLight
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
         border: Border.all(
           color: _expanded
               ? colorScheme.primary
-              : colorScheme.surfaceContainerHighest,
+              : (isLight
+                    ? Colors.transparent
+                    : colorScheme.surfaceContainerHighest),
+          width: _expanded ? 2 : 1,
         ),
       ),
       child: Column(
         children: [
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(20),
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(20.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Text(
                       chartData.exerciseName.toUpperCase(),
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
-                  Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    color: colorScheme.onSurfaceVariant,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: colorScheme.primary,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
           AnimatedSize(
-            duration: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
             child: !_expanded
                 ? const SizedBox.shrink()
                 : Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (chartData.yValues.isNotEmpty)
-                          SizedBox(height: 200, child: _buildChart(context))
+                          Container(
+                            height: 220,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: _buildChart(context),
+                          )
                         else
                           const Padding(
-                            padding: EdgeInsets.all(16.0),
+                            padding: EdgeInsets.all(24.0),
                             child: Text(
                               "No data.",
                               textAlign: TextAlign.center,
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
-                        const SizedBox(height: 16),
-                        Divider(color: colorScheme.surfaceContainerHighest),
+                        const SizedBox(height: 24),
                         ...chartData.logs.map(
                           (log) => _buildLogItem(context, log),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
@@ -496,11 +589,15 @@ class _ExerciseExpandableCardState extends State<_ExerciseExpandableCard> {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 30,
+              reservedSize: 36,
               interval: interval,
               getTitlesWidget: (v, _) => Text(
                 v.toInt().toString(),
-                style: const TextStyle(fontSize: 10),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ),
@@ -510,15 +607,21 @@ class _ExerciseExpandableCardState extends State<_ExerciseExpandableCard> {
           LineChartBarData(
             spots: mainSpots,
             isCurved: true,
-            color: colorScheme.secondary,
-            barWidth: 2,
+            color: colorScheme.primary,
+            barWidth: 4,
+            isStrokeCapRound: true,
+            belowBarData: BarAreaData(
+              show: true,
+              color: colorScheme.primary.withValues(alpha: 0.1),
+            ),
             dotData: FlDotData(
               show: true,
               getDotPainter: (spot, percent, barData, index) =>
                   FlDotCirclePainter(
-                    radius: 3,
-                    color: colorScheme.secondary,
-                    strokeWidth: 0,
+                    radius: 5,
+                    color: colorScheme.primary,
+                    strokeWidth: 2,
+                    strokeColor: colorScheme.surface,
                   ),
             ),
           ),
@@ -532,8 +635,13 @@ class _ExerciseExpandableCardState extends State<_ExerciseExpandableCard> {
     final date = DateFormat(
       'dd MMM yyyy',
     ).format(DateTime.fromMillisecondsSinceEpoch(log.date));
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -543,29 +651,38 @@ class _ExerciseExpandableCardState extends State<_ExerciseExpandableCard> {
               Text(
                 date.toUpperCase(),
                 style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
                 ),
               ),
+              const SizedBox(height: 4),
               Text(
                 log.details,
                 style: TextStyle(
                   color: colorScheme.onSurfaceVariant,
-                  fontSize: 12,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
           IconButton(
             icon: Icon(
-              Icons.delete,
-              color: colorScheme.surfaceContainerHighest,
-              size: 20,
+              Icons.delete_outline_rounded,
+              color: colorScheme.error,
+              size: 24,
             ),
             onPressed: () =>
                 widget.provider.deleteHistoryExercise(log.exerciseId),
             constraints: const BoxConstraints(),
-            padding: EdgeInsets.zero,
+            padding: const EdgeInsets.all(8),
+            style: IconButton.styleFrom(
+              backgroundColor: colorScheme.error.withValues(alpha: 0.1),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
           ),
         ],
       ),

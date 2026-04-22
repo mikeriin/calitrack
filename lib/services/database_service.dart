@@ -2,27 +2,17 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/workout_models.dart';
 
-// ==========================================
-// GROUPING CLASSES (Relationships)
-// ==========================================
-
 class HistoryExerciseWithSets {
   final HistoryExercise exercise;
   final List<HistorySet> sets;
-
   HistoryExerciseWithSets({required this.exercise, required this.sets});
 }
 
 class FullHistorySession {
   final HistorySession session;
   final List<HistoryExerciseWithSets> exercises;
-
   FullHistorySession({required this.session, required this.exercises});
 }
-
-// ==========================================
-// DATABASE SERVICE (Singleton)
-// ==========================================
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -42,14 +32,12 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version:
-          4, // Version bumped to handle translation of "exercices" to "exercises" column
+      version: 5, // Version bumped to 5 for programs
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 4) {
-          // Recreate tables to reflect naming changes if necessary
           await db.execute('DROP TABLE IF EXISTS progression_conditions');
           await db.execute('DROP TABLE IF EXISTS conditions');
           await db.execute('DROP TABLE IF EXISTS sessions');
@@ -62,7 +50,6 @@ class DatabaseService {
                 exercises TEXT
               )
             ''');
-
           await db.execute('''
               CREATE TABLE progression_conditions (
                 id TEXT PRIMARY KEY,
@@ -73,15 +60,15 @@ class DatabaseService {
                 weightIncrement REAL
               )
             ''');
-
+        }
+        if (oldVersion < 5) {
           await db.execute('''
-              CREATE TABLE conditions (
+              CREATE TABLE programs (
                 id TEXT PRIMARY KEY,
                 name TEXT,
-                type TEXT,
-                targetSets INTEGER,
-                targetReps INTEGER,
-                weightIncrement REAL
+                isActive INTEGER,
+                weeks TEXT,
+                completedSessionIds TEXT
               )
             ''');
         }
@@ -95,7 +82,15 @@ class DatabaseService {
             exercises TEXT
           )
         ''');
-
+        await db.execute('''
+          CREATE TABLE programs (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            isActive INTEGER,
+            weeks TEXT,
+            completedSessionIds TEXT
+          )
+        ''');
         await db.execute('''
           CREATE TABLE history_sessions (
             id TEXT PRIMARY KEY,
@@ -106,7 +101,6 @@ class DatabaseService {
             isCompleted INTEGER
           )
         ''');
-
         await db.execute('''
           CREATE TABLE history_exercises (
             id TEXT PRIMARY KEY,
@@ -116,7 +110,6 @@ class DatabaseService {
             FOREIGN KEY (historySessionId) REFERENCES history_sessions (id) ON DELETE CASCADE
           )
         ''');
-
         await db.execute('''
           CREATE TABLE history_sets (
             id TEXT PRIMARY KEY,
@@ -129,7 +122,6 @@ class DatabaseService {
             FOREIGN KEY (historyExerciseId) REFERENCES history_exercises (id) ON DELETE CASCADE
           )
         ''');
-
         await db.execute('''
           CREATE TABLE assets_exercises (
             id TEXT PRIMARY KEY,
@@ -139,7 +131,6 @@ class DatabaseService {
             condition TEXT
           )
         ''');
-
         await db.execute('''
           CREATE TABLE progression_conditions (
             id TEXT PRIMARY KEY,
@@ -150,19 +141,32 @@ class DatabaseService {
             weightIncrement REAL
           )
         ''');
-
-        await db.execute('''
-          CREATE TABLE conditions (
-            id TEXT PRIMARY KEY,
-            name TEXT,
-            type TEXT,
-            targetSets INTEGER,
-            targetReps INTEGER,
-            weightIncrement REAL
-          )
-        ''');
       },
     );
+  }
+
+  // ==========================================
+  // DAO: PROGRAMS
+  // ==========================================
+
+  Future<void> insertProgram(Program program) async {
+    final db = await database;
+    await db.insert(
+      'programs',
+      program.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Program>> getAllPrograms() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('programs');
+    return maps.map((map) => Program.fromMap(map)).toList();
+  }
+
+  Future<void> deleteProgram(String id) async {
+    final db = await database;
+    await db.delete('programs', where: 'id = ?', whereArgs: [id]);
   }
 
   // ==========================================
@@ -247,7 +251,6 @@ class DatabaseService {
 
     List<FullHistorySession> fullHistory = [];
 
-    // 2. For each session, fetch its exercises and sets
     for (var session in sessions) {
       final List<Map<String, dynamic>> exerciseMaps = await db.query(
         'history_exercises',
@@ -305,7 +308,7 @@ class DatabaseService {
   }
 
   // ==========================================
-  // DAO: ASSETS
+  // DAO: ASSETS & CONDITIONS
   // ==========================================
 
   Future<void> insertAsset(AssetExercise asset) async {
@@ -327,10 +330,6 @@ class DatabaseService {
     final db = await database;
     await db.delete('assets_exercises', where: 'id = ?', whereArgs: [id]);
   }
-
-  // ==========================================
-  // DAO: CONDITIONS (Progression)
-  // ==========================================
 
   Future<void> insertCondition(ProgressionCondition condition) async {
     final db = await database;

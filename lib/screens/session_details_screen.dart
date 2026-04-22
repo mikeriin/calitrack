@@ -11,22 +11,20 @@ import '../viewmodels/asset_provider.dart';
 
 class SessionDetailsScreen extends StatelessWidget {
   final String sessionId;
-
   const SessionDetailsScreen({super.key, required this.sessionId});
 
   @override
   Widget build(BuildContext context) {
     final sessionProvider = context.watch<SessionProvider>();
     final assetProvider = context.watch<AssetProvider>();
-    final session = sessionProvider.allSessions.firstWhere(
-      (s) => s.id == sessionId,
-      orElse: () => Session(title: "Error", day: Day.monday),
-    );
+    final session =
+        sessionProvider.getSessionById(sessionId) ??
+        Session(title: "Error", day: Day.monday);
     final progress = sessionProvider.progress;
     final colorScheme = Theme.of(context).colorScheme;
     final conditions = assetProvider.conditions;
-    final accentColor = const Color(0xFF10B981);
 
+    final accentColor = Colors.green;
     final bool isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
@@ -35,25 +33,23 @@ class SessionDetailsScreen extends StatelessWidget {
       floatingActionButton: isKeyboardOpen
           ? null
           : Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
+              margin: const EdgeInsets.symmetric(horizontal: 24),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                // Very diffuse dither/glow effect under the area
                 boxShadow: [
                   BoxShadow(
                     color: Theme.of(
                       context,
-                    ).scaffoldBackgroundColor.withValues(alpha: 0.9),
-                    blurRadius: 30,
-                    spreadRadius: 20,
+                    ).scaffoldBackgroundColor.withValues(alpha: 0.95),
+                    blurRadius: 40,
+                    spreadRadius: 30,
                     offset: const Offset(0, 10),
                   ),
                 ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   if (conditions.isNotEmpty)
                     Flexible(
@@ -73,14 +69,15 @@ class SessionDetailsScreen extends StatelessWidget {
                         blendMode: BlendMode.dstIn,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.only(right: 24),
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.only(right: 32),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: conditions.map((condition) {
                               return Padding(
-                                padding: const EdgeInsets.only(right: 8.0),
+                                padding: const EdgeInsets.only(right: 12.0),
                                 child: SizedBox(
-                                  width: 76,
+                                  width: 80,
                                   child:
                                       LongPressDraggable<ProgressionCondition>(
                                         data: condition,
@@ -90,7 +87,7 @@ class SessionDetailsScreen extends StatelessWidget {
                                         feedback: Material(
                                           color: Colors.transparent,
                                           child: SizedBox(
-                                            width: 76,
+                                            width: 80,
                                             child: _AppIconWidget(
                                               icon: Icons.trending_up_rounded,
                                               label: condition.name,
@@ -122,20 +119,24 @@ class SessionDetailsScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   FloatingActionButton.extended(
                     onPressed: () =>
                         _showAssetSelectionDialog(context, session),
                     backgroundColor: colorScheme.primary,
                     foregroundColor: colorScheme.onPrimary,
-                    elevation: 0,
+                    elevation: 8,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    icon: const Icon(Icons.add_rounded, size: 20),
+                    icon: const Icon(Icons.add_rounded, size: 28),
                     label: const Text(
                       "ADD",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        letterSpacing: 1,
+                      ),
                     ),
                   ),
                 ],
@@ -143,9 +144,10 @@ class SessionDetailsScreen extends StatelessWidget {
             ),
       body: SafeArea(
         child: ReorderableListView.builder(
-          padding: const EdgeInsets.only(bottom: 140),
+          padding: const EdgeInsets.only(bottom: 160),
+          physics: const BouncingScrollPhysics(),
           header: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -156,20 +158,27 @@ class SessionDetailsScreen extends StatelessWidget {
                       Text(
                         session.title.toUpperCase(),
                         style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(color: colorScheme.onSurface),
+                            ?.copyWith(
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       Text(
                         session.day.dayOut.toUpperCase(),
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: colorScheme.secondary),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: colorScheme.secondary,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 if (session.exercises.isNotEmpty && progress.startTime == 0)
                   IconButton.filled(
-                    iconSize: 24,
+                    iconSize: 32,
+                    padding: const EdgeInsets.all(16),
                     onPressed: () {
                       sessionProvider.startSession(session.id);
                       context.go('/session_of_the_day');
@@ -178,30 +187,48 @@ class SessionDetailsScreen extends StatelessWidget {
                     style: IconButton.styleFrom(
                       backgroundColor: colorScheme.primary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(16),
                       ),
+                      elevation: 8,
+                      shadowColor: colorScheme.primary.withValues(alpha: 0.4),
                     ),
                   )
                 else if (progress.startTime > 0 &&
                     progress.sessionId == session.id &&
                     !progress.isFinished)
                   IconButton.filled(
-                    iconSize: 24,
+                    iconSize: 32,
+                    padding: const EdgeInsets.all(16),
                     onPressed: () => context.go('/session_of_the_day'),
                     icon: const Icon(Icons.play_arrow_rounded),
                     style: IconButton.styleFrom(
                       backgroundColor: colorScheme.secondary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(16),
                       ),
+                      elevation: 8,
+                      shadowColor: colorScheme.secondary.withValues(alpha: 0.4),
                     ),
                   ),
               ],
             ),
           ),
           itemCount: session.exercises.length + 1,
-          proxyDecorator: (child, index, animation) =>
-              Material(color: Colors.transparent, child: child),
+          proxyDecorator: (child, index, animation) => Material(
+            color: Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: child,
+            ),
+          ),
           onReorder: (oldIndex, newIndex) {
             if (oldIndex >= session.exercises.length) return;
             if (newIndex > session.exercises.length)
@@ -217,40 +244,40 @@ class SessionDetailsScreen extends StatelessWidget {
               return Padding(
                 key: const ValueKey("footer_clean_button"),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 24,
+                  horizontal: 24,
+                  vertical: 32,
                 ),
                 child: SizedBox(
                   width: double.infinity,
-                  height: 48,
+                  height: 64,
                   child: OutlinedButton.icon(
                     onPressed: () => sessionProvider.cleanSession(session.id),
-                    icon: const Icon(Icons.cleaning_services_rounded, size: 20),
+                    icon: const Icon(Icons.cleaning_services_rounded, size: 24),
                     label: const Text(
                       "CLEAN SESSION",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        letterSpacing: 1,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: colorScheme.error,
-                      side: BorderSide(
-                        color: colorScheme.error.withValues(alpha: 0.5),
-                        width: 1,
-                      ),
+                      side: BorderSide(color: colorScheme.error, width: 2),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                     ),
                   ),
                 ),
               );
             }
-
             final exercise = session.exercises[index];
             return Padding(
               key: ValueKey(exercise.id),
               padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-              ).copyWith(bottom: 12),
+                horizontal: 24,
+              ).copyWith(bottom: 16),
               child: ExerciseCard(
                 exercise: exercise,
                 onDelete: () =>
@@ -287,6 +314,21 @@ class AssetSelectionGridDialog extends StatelessWidget {
           weight: 0.0,
           rest: 0,
         );
+      case ExerciseType.pyramid:
+        return Pyramid(
+          name: asset.name,
+          minReps: 0,
+          maxReps: 0,
+          increment: 0,
+          restSeconds: 0,
+        );
+      case ExerciseType.multiEmom:
+        return MultiEmom(
+          name: asset.name,
+          everyXSeconds: 60,
+          totalRounds: 1,
+          minutes: [],
+        );
       case ExerciseType.amrap:
         return Amrap(name: asset.name, timeCapMinutes: 0);
       case ExerciseType.emom:
@@ -316,11 +358,11 @@ class AssetSelectionGridDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: colorScheme.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         side: BorderSide(color: colorScheme.surfaceContainerHighest, width: 1),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -329,12 +371,13 @@ class AssetSelectionGridDialog extends StatelessWidget {
               children: [
                 Text(
                   "ADD EXERCISE",
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const Icon(Icons.close_rounded, size: 28),
                   onPressed: () => Navigator.pop(context),
                   color: colorScheme.onSurfaceVariant,
                   padding: EdgeInsets.zero,
@@ -342,14 +385,15 @@ class AssetSelectionGridDialog extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Flexible(
               child: GridView.builder(
                 shrinkWrap: true,
+                physics: const BouncingScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 20,
+                  crossAxisSpacing: 20,
                   childAspectRatio: 0.55,
                 ),
                 itemCount: assets.length,
@@ -384,7 +428,6 @@ class _AppIconWidget extends StatelessWidget {
   final Color color;
   final String? topLabel;
   final VoidCallback onTap;
-
   const _AppIconWidget({
     required this.icon,
     required this.label,
@@ -407,29 +450,30 @@ class _AppIconWidget extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
                 color: color,
+                letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
           ],
           Container(
-            height: 56,
-            width: 56,
+            height: 64,
+            width: 64,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(icon, color: color, size: 28),
+            child: Icon(icon, color: color, size: 32),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             label,
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
           ),
         ],
       ),
@@ -441,14 +485,12 @@ class ExerciseCard extends StatefulWidget {
   final Exercise exercise;
   final VoidCallback onDelete;
   final void Function(Exercise) onUpdate;
-
   const ExerciseCard({
     super.key,
     required this.exercise,
     required this.onDelete,
     required this.onUpdate,
   });
-
   @override
   State<ExerciseCard> createState() => _ExerciseCardState();
 }
@@ -469,6 +511,10 @@ class _ExerciseCardState extends State<ExerciseCard> {
       _clusterIncCtrl;
   List<SubExercise> _movements = [];
   late TextEditingController _subNameCtrl, _subRepsCtrl, _subWeightCtrl;
+  late TextEditingController _pyrMinCtrl, _pyrMaxCtrl, _pyrIncCtrl;
+  PyramidType _pyrType = PyramidType.upAndDown;
+  List<EmomMinuteGroup> _emomMinutes = [];
+  int _activeMinuteIndex = 0;
 
   @override
   void initState() {
@@ -502,7 +548,6 @@ class _ExerciseCardState extends State<ExerciseCard> {
     _subNameCtrl = TextEditingController();
     _subRepsCtrl = TextEditingController();
     _subWeightCtrl = TextEditingController();
-
     String formatVal(num v) => v == 0
         ? ''
         : (v is double
@@ -515,6 +560,18 @@ class _ExerciseCardState extends State<ExerciseCard> {
       _weightCtrl.text = formatVal(ex.weight);
       _restMinCtrl.text = formatVal(ex.rest ~/ 60);
       _restSecCtrl.text = formatVal(ex.rest % 60);
+    } else if (ex is Pyramid) {
+      _pyrMinCtrl = TextEditingController(text: formatVal(ex.minReps));
+      _pyrMaxCtrl = TextEditingController(text: formatVal(ex.maxReps));
+      _pyrIncCtrl = TextEditingController(text: formatVal(ex.increment));
+      _weightCtrl.text = formatVal(ex.weight);
+      _restMinCtrl.text = formatVal(ex.restSeconds ~/ 60);
+      _restSecCtrl.text = formatVal(ex.restSeconds % 60);
+      _pyrType = ex.pyramidType;
+    } else if (ex is MultiEmom) {
+      _emomSecCtrl.text = formatVal(ex.everyXSeconds);
+      _emomRoundsCtrl.text = formatVal(ex.totalRounds);
+      _emomMinutes = List.from(ex.minutes);
     } else if (ex is Amrap) {
       _timeCapCtrl.text = formatVal(ex.timeCapMinutes);
       _movements = List.from(ex.movements);
@@ -565,6 +622,11 @@ class _ExerciseCardState extends State<ExerciseCard> {
     _subNameCtrl.dispose();
     _subRepsCtrl.dispose();
     _subWeightCtrl.dispose();
+    if (widget.exercise is Pyramid) {
+      _pyrMinCtrl.dispose();
+      _pyrMaxCtrl.dispose();
+      _pyrIncCtrl.dispose();
+    }
   }
 
   @override
@@ -588,6 +650,27 @@ class _ExerciseCardState extends State<ExerciseCard> {
         reps: int.tryParse(_repsCtrl.text) ?? ex.reps,
         weight: double.tryParse(_weightCtrl.text) ?? ex.weight,
         rest: restTotal,
+        condition: ex.condition,
+      );
+    else if (ex is Pyramid)
+      updatedEx = Pyramid(
+        id: ex.id,
+        name: ex.name,
+        minReps: int.tryParse(_pyrMinCtrl.text) ?? ex.minReps,
+        maxReps: int.tryParse(_pyrMaxCtrl.text) ?? ex.maxReps,
+        increment: int.tryParse(_pyrIncCtrl.text) ?? ex.increment,
+        weight: double.tryParse(_weightCtrl.text) ?? ex.weight,
+        restSeconds: restTotal,
+        pyramidType: _pyrType,
+        condition: ex.condition,
+      );
+    else if (ex is MultiEmom)
+      updatedEx = MultiEmom(
+        id: ex.id,
+        name: ex.name,
+        everyXSeconds: int.tryParse(_emomSecCtrl.text) ?? ex.everyXSeconds,
+        totalRounds: int.tryParse(_emomRoundsCtrl.text) ?? ex.totalRounds,
+        minutes: _emomMinutes,
         condition: ex.condition,
       );
     else if (ex is Amrap)
@@ -667,7 +750,10 @@ class _ExerciseCardState extends State<ExerciseCard> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final accentColor = const Color(0xFF10B981);
+    final isLight = Theme.of(context).brightness == Brightness.light;
+
+    final accentColor =
+        Colors.green;
 
     return DragTarget<ProgressionCondition>(
       hitTestBehavior: HitTestBehavior.opaque,
@@ -678,14 +764,25 @@ class _ExerciseCardState extends State<ExerciseCard> {
         return Container(
           decoration: BoxDecoration(
             color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: isLight
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 15,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
             border: Border.all(
               color: isHovered
                   ? accentColor
                   : (_isExpanded
                         ? colorScheme.primary
-                        : colorScheme.surfaceContainerHighest),
-              width: isHovered ? 2 : 1,
+                        : (isLight
+                              ? Colors.transparent
+                              : colorScheme.surfaceContainerHighest)),
+              width: isHovered || _isExpanded ? 2 : 1,
             ),
           ),
           child: Theme(
@@ -696,20 +793,29 @@ class _ExerciseCardState extends State<ExerciseCard> {
                 if (!expanded) _saveInlineEdits();
               },
               tilePadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 4,
+                horizontal: 20,
+                vertical: 8,
               ),
-              leading: Icon(
-                widget.exercise is RestBlock
-                    ? Icons.timer_rounded
-                    : Icons.fitness_center_rounded,
-                color: colorScheme.onSurfaceVariant,
+              leading: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  widget.exercise is RestBlock
+                      ? Icons.timer_rounded
+                      : Icons.fitness_center_rounded,
+                  color: colorScheme.primary,
+                ),
               ),
               title: Text(
                 widget.exercise.name.toUpperCase(),
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: colorScheme.onSurface),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
               ),
               subtitle: _buildSummary(context, accentColor),
               trailing: IconButton(
@@ -721,13 +827,13 @@ class _ExerciseCardState extends State<ExerciseCard> {
                 style: IconButton.styleFrom(
                   backgroundColor: colorScheme.error.withValues(alpha: 0.1),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                   child: _buildInlineFormForType(),
                 ),
               ],
@@ -741,7 +847,6 @@ class _ExerciseCardState extends State<ExerciseCard> {
   Widget _buildSummary(BuildContext context, Color accentColor) {
     String summary = "";
     final ex = widget.exercise;
-
     String formatRest(int seconds) {
       if (seconds <= 0) return "";
       final m = seconds ~/ 60;
@@ -754,6 +859,11 @@ class _ExerciseCardState extends State<ExerciseCard> {
     if (ex is Classic)
       summary =
           "${ex.sets} x ${ex.reps}${ex.weight > 0 ? ' @ ${ex.weight}kg' : ''}${formatRest(ex.rest)}";
+    else if (ex is Pyramid)
+      summary =
+          "PYRAMID ${ex.pyramidType.label.toUpperCase()} [${ex.minReps}-${ex.maxReps}]${ex.weight > 0 ? ' @ ${ex.weight}kg' : ''}${formatRest(ex.restSeconds)}";
+    else if (ex is MultiEmom)
+      summary = "MULTI-EMOM - ${ex.totalRounds} CIRCUITS";
     else if (ex is Amrap)
       summary = "AMRAP - ${ex.timeCapMinutes} MIN";
     else if (ex is Emom)
@@ -779,11 +889,11 @@ class _ExerciseCardState extends State<ExerciseCard> {
       children: [
         if (!_isExpanded)
           Padding(
-            padding: const EdgeInsets.only(top: 4.0),
+            padding: const EdgeInsets.only(top: 6.0),
             child: Text(
               summary,
               style: TextStyle(
-                color: Theme.of(context).colorScheme.secondary,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -792,21 +902,33 @@ class _ExerciseCardState extends State<ExerciseCard> {
           GestureDetector(
             onDoubleTap: () => widget.onUpdate(ex.copyWithCondition(null)),
             child: Padding(
-              padding: const EdgeInsets.only(top: 4.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.trending_up, color: accentColor, size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    ex.condition!.name,
-                    style: TextStyle(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.trending_up_rounded,
                       color: accentColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      size: 16,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    Text(
+                      ex.condition!.name.toUpperCase(),
+                      style: TextStyle(
+                        color: accentColor,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 11,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -814,33 +936,367 @@ class _ExerciseCardState extends State<ExerciseCard> {
     );
   }
 
+  InputDecoration _deco(String label) {
+    return InputDecoration(
+      labelText: label,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      filled: true,
+      fillColor: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      isDense: true,
+    );
+  }
+
   Widget _buildInlineFormForType() {
     final ex = widget.exercise;
+    final style = const TextStyle(fontWeight: FontWeight.bold);
     if (ex is Classic) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
-              Expanded(child: _buildTextField(_setsCtrl, "Sets")),
-              const SizedBox(width: 8),
-              Expanded(child: _buildTextField(_repsCtrl, "Reps")),
-              const SizedBox(width: 8),
               Expanded(
-                child: _buildTextField(_weightCtrl, "Weight", isDecimal: true),
+                child: TextField(
+                  controller: _setsCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Sets"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _repsCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Reps"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _weightCtrl,
+                  style: style,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: _deco("Weight"),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildRestFields(),
+        ],
+      );
+    } else if (ex is Pyramid) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _pyrMinCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Min Reps"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _pyrMaxCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Max Reps"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _pyrIncCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Step (+/-)"),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<PyramidType>(
+                  initialValue: _pyrType,
+                  decoration: _deco("Pyramid Mode"),
+                  items: PyramidType.values
+                      .map(
+                        (t) => DropdownMenuItem(
+                          value: t,
+                          child: Text(t.label, style: style),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _pyrType = val);
+                      _saveInlineEdits();
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _weightCtrl,
+                  style: style,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: _deco("Weight"),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildRestFields(),
+        ],
+      );
+    } else if (ex is MultiEmom) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _emomSecCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Durée (sec)"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _emomRoundsCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Total Circuits"),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            "CIRCUITS PAR MINUTE",
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._emomMinutes.asMap().entries.map((entry) {
+            int mIdx = entry.key;
+            EmomMinuteGroup group = entry.value;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "MINUTE ${mIdx + 1}",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 24,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _emomMinutes.removeAt(mIdx);
+                            _saveInlineEdits();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ...group.movements.asMap().entries.map((movEntry) {
+                    int subIdx = movEntry.key;
+                    SubExercise mov = movEntry.value;
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            "• ${mov.reps}x ${mov.name}${mov.weight > 0 ? ' @ ${mov.weight}kg' : ''}",
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                          onPressed: () {
+                            setState(() {
+                              _emomMinutes[mIdx].movements.removeAt(subIdx);
+                              _saveInlineEdits();
+                            });
+                          },
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            );
+          }),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                DropdownButtonFormField<int>(
+                  initialValue: _emomMinutes.isEmpty
+                      ? null
+                      : (_activeMinuteIndex >= _emomMinutes.length
+                            ? 0
+                            : _activeMinuteIndex),
+                  decoration: _deco("Add movement to Minute"),
+                  items: List.generate(
+                    _emomMinutes.length,
+                    (i) => DropdownMenuItem(
+                      value: i,
+                      child: Text("Minute ${i + 1}", style: style),
+                    ),
+                  ),
+                  onChanged: (val) {
+                    if (val != null) setState(() => _activeMinuteIndex = val);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _subNameCtrl,
+                  style: style,
+                  decoration: _deco("Movement Name"),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _subRepsCtrl,
+                        style: style,
+                        keyboardType: TextInputType.number,
+                        decoration: _deco("Reps"),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _subWeightCtrl,
+                        style: style,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: _deco("Weight"),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      icon: const Icon(Icons.add_box_rounded, size: 32),
+                      color: Theme.of(context).colorScheme.primary,
+                      onPressed: () {
+                        if (_subNameCtrl.text.isNotEmpty &&
+                            _subRepsCtrl.text.isNotEmpty &&
+                            _emomMinutes.isNotEmpty) {
+                          setState(() {
+                            int targetIdx =
+                                _activeMinuteIndex >= _emomMinutes.length
+                                ? 0
+                                : _activeMinuteIndex;
+                            _emomMinutes[targetIdx].movements.add(
+                              SubExercise(
+                                name: _subNameCtrl.text,
+                                reps: int.tryParse(_subRepsCtrl.text) ?? 0,
+                                weight:
+                                    double.tryParse(_subWeightCtrl.text) ?? 0.0,
+                              ),
+                            );
+                            _subNameCtrl.clear();
+                            _subRepsCtrl.clear();
+                            _subWeightCtrl.clear();
+                            _saveInlineEdits();
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _emomMinutes.add(
+                  EmomMinuteGroup(
+                    minuteIndex: _emomMinutes.length + 1,
+                    movements: [],
+                  ),
+                );
+                _saveInlineEdits();
+              });
+            },
+            icon: const Icon(Icons.add_circle_outline_rounded),
+            label: const Text(
+              "ADD NEW MINUTE",
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
         ],
       );
     } else if (ex is Amrap) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildTextField(_timeCapCtrl, "Time Cap (min)"),
-          const SizedBox(height: 12),
+          TextField(
+            controller: _timeCapCtrl,
+            style: style,
+            keyboardType: TextInputType.number,
+            decoration: _deco("Time Cap (min)"),
+          ),
+          const SizedBox(height: 16),
           _buildSubMovementsList("MOVEMENTS"),
         ],
       );
@@ -850,39 +1306,86 @@ class _ExerciseCardState extends State<ExerciseCard> {
         children: [
           Row(
             children: [
-              Expanded(child: _buildTextField(_emomSecCtrl, "Every X sec")),
-              const SizedBox(width: 8),
-              Expanded(child: _buildTextField(_emomRoundsCtrl, "Rounds")),
+              Expanded(
+                child: TextField(
+                  controller: _emomSecCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Every X sec"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _emomRoundsCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Rounds"),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildSubMovementsList("INTERVAL MOVEMENTS"),
         ],
       );
     } else if (ex is RestPause) {
       return Row(
         children: [
-          Expanded(child: _buildTextField(_rpMicroSetsCtrl, "Micro Sets")),
-          const SizedBox(width: 8),
-          Expanded(child: _buildTextField(_rpRestSecCtrl, "Rest (sec)")),
+          Expanded(
+            child: TextField(
+              controller: _rpMicroSetsCtrl,
+              style: style,
+              keyboardType: TextInputType.number,
+              decoration: _deco("Micro Sets"),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _rpRestSecCtrl,
+              style: style,
+              keyboardType: TextInputType.number,
+              decoration: _deco("Rest (sec)"),
+            ),
+          ),
         ],
       );
     } else if (ex is Cluster) {
       return Row(
         children: [
-          Expanded(child: _buildTextField(_clusterRepsCtrl, "Total Reps")),
-          const SizedBox(width: 8),
-          Expanded(child: _buildTextField(_clusterIncCtrl, "Increment factor")),
+          Expanded(
+            child: TextField(
+              controller: _clusterRepsCtrl,
+              style: style,
+              keyboardType: TextInputType.number,
+              decoration: _deco("Total Reps"),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _clusterIncCtrl,
+              style: style,
+              keyboardType: TextInputType.number,
+              decoration: _deco("Inc. factor"),
+            ),
+          ),
         ],
       );
     } else if (ex is Circuit) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildTextField(_setsCtrl, "Rounds"),
-          const SizedBox(height: 12),
+          TextField(
+            controller: _setsCtrl,
+            style: style,
+            keyboardType: TextInputType.number,
+            decoration: _deco("Rounds"),
+          ),
+          const SizedBox(height: 16),
           _buildRestFields(title: "REST BETWEEN ROUNDS"),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildSubMovementsList("CIRCUIT MOVEMENTS"),
         ],
       );
@@ -892,14 +1395,28 @@ class _ExerciseCardState extends State<ExerciseCard> {
         children: [
           Row(
             children: [
-              Expanded(child: _buildTextField(_setsCtrl, "Sets")),
-              const SizedBox(width: 8),
               Expanded(
-                child: _buildTextField(_weightCtrl, "Weight", isDecimal: true),
+                child: TextField(
+                  controller: _setsCtrl,
+                  style: style,
+                  keyboardType: TextInputType.number,
+                  decoration: _deco("Sets"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _weightCtrl,
+                  style: style,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: _deco("Weight"),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildRestFields(),
         ],
       );
@@ -907,10 +1424,15 @@ class _ExerciseCardState extends State<ExerciseCard> {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildTextField(_setsCtrl, "Sets"),
-          const SizedBox(height: 12),
+          TextField(
+            controller: _setsCtrl,
+            style: style,
+            keyboardType: TextInputType.number,
+            decoration: _deco("Sets"),
+          ),
+          const SizedBox(height: 16),
           _buildRestFields(),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildSubMovementsList("POSITIONS", repsLabel: "Sec"),
         ],
       );
@@ -918,22 +1440,6 @@ class _ExerciseCardState extends State<ExerciseCard> {
       return _buildRestFields();
     }
     return const SizedBox.shrink();
-  }
-
-  Widget _buildTextField(
-    TextEditingController controller,
-    String label, {
-    bool isDecimal = false,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: TextInputType.numberWithOptions(decimal: isDecimal),
-      decoration: InputDecoration(
-        labelText: label,
-        isDense: true,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
   }
 
   Widget _buildRestFields({String title = "REST"}) {
@@ -945,14 +1451,30 @@ class _ExerciseCardState extends State<ExerciseCard> {
           title,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _buildTextField(_restMinCtrl, "Min")),
-            const SizedBox(width: 8),
-            Expanded(child: _buildTextField(_restSecCtrl, "Sec")),
+            Expanded(
+              child: TextField(
+                controller: _restMinCtrl,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                keyboardType: TextInputType.number,
+                decoration: _deco("Min"),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _restSecCtrl,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                keyboardType: TextInputType.number,
+                decoration: _deco("Sec"),
+              ),
+            ),
           ],
         ),
       ],
@@ -960,6 +1482,7 @@ class _ExerciseCardState extends State<ExerciseCard> {
   }
 
   Widget _buildSubMovementsList(String title, {String repsLabel = "Reps"}) {
+    final style = const TextStyle(fontWeight: FontWeight.bold);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -968,24 +1491,29 @@ class _ExerciseCardState extends State<ExerciseCard> {
           title,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         ..._movements.asMap().entries.map((entry) {
           int idx = entry.key;
           SubExercise mov = entry.value;
           return Padding(
-            padding: const EdgeInsets.only(bottom: 4.0),
+            padding: const EdgeInsets.only(bottom: 8.0),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     "• ${mov.reps}${repsLabel == 'Sec' ? 's' : 'x'} ${mov.name}${mov.weight > 0 ? ' @ ${mov.weight}kg' : ''}",
-                    style: const TextStyle(fontSize: 13),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 18),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
                   onPressed: () {
                     setState(() => _movements.removeAt(idx));
                     _saveInlineEdits();
@@ -995,63 +1523,51 @@ class _ExerciseCardState extends State<ExerciseCard> {
             ),
           );
         }),
+        const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Theme.of(
               context,
             ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: _subNameCtrl,
-                decoration: InputDecoration(
-                  labelText: "Movement Name",
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+                style: style,
+                decoration: _deco("Movement Name"),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: _subRepsCtrl,
+                      style: style,
                       keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: repsLabel,
-                        isDense: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
+                      decoration: _deco(repsLabel),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: TextField(
                       controller: _subWeightCtrl,
+                      style: style,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: InputDecoration(
-                        labelText: "Weight",
-                        isDense: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
+                      decoration: _deco("Weight"),
                     ),
                   ),
+                  const SizedBox(width: 12),
                   IconButton(
                     icon: Icon(
-                      Icons.add_box,
+                      Icons.add_box_rounded,
                       color: Theme.of(context).colorScheme.primary,
+                      size: 32,
                     ),
                     onPressed: () {
                       if (_subNameCtrl.text.isNotEmpty &&
