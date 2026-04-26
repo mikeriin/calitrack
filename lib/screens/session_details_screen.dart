@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 import '../models/workout_models.dart';
 import '../viewmodels/session_provider.dart';
 import '../viewmodels/asset_provider.dart';
@@ -272,7 +273,25 @@ class SessionDetailsScreen extends StatelessWidget {
                 ),
               );
             }
+
             final exercise = session.exercises[index];
+
+            if (exercise is ModuleBlock) {
+              return Padding(
+                key: ValueKey(exercise.id),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                ).copyWith(bottom: 16),
+                child: SessionModuleCard(
+                  module: exercise,
+                  onDelete: () =>
+                      sessionProvider.deleteExercise(session.id, exercise.id),
+                  onUpdate: (updatedMod) =>
+                      sessionProvider.updateExercise(session.id, updatedMod),
+                ),
+              );
+            }
+
             return Padding(
               key: ValueKey(exercise.id),
               padding: const EdgeInsets.symmetric(
@@ -303,6 +322,193 @@ class SessionDetailsScreen extends StatelessWidget {
 class AssetSelectionGridDialog extends StatelessWidget {
   final Session session;
   const AssetSelectionGridDialog({super.key, required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DefaultTabController(
+      length: 2,
+      child: Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(
+            color: colorScheme.surfaceContainerHighest,
+            width: 1,
+          ),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "ADD CONTENT",
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 28),
+                      onPressed: () => Navigator.pop(context),
+                      color: colorScheme.onSurfaceVariant,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TabBar(
+                  labelColor: colorScheme.primary,
+                  unselectedLabelColor: colorScheme.onSurfaceVariant,
+                  indicatorColor: colorScheme.primary,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                  tabs: const [
+                    Tab(text: "EXERCISES"),
+                    Tab(text: "MODULES"),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _DialogExercisesGrid(session: session),
+                      _buildModulesGrid(context),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModulesGrid(BuildContext context) {
+    final assetProvider = context.watch<AssetProvider>();
+    final sessionProvider = context.read<SessionProvider>();
+    final colorScheme = Theme.of(context).colorScheme;
+    final modules = assetProvider.modules;
+
+    if (modules.isEmpty) {
+      return Center(
+        child: Text(
+          "No modules yet.",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const BouncingScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 20,
+        crossAxisSpacing: 20,
+        childAspectRatio: 0.55,
+      ),
+      itemCount: modules.length,
+      itemBuilder: (context, index) {
+        final mod = modules[index];
+        return GestureDetector(
+          onTap: () {
+            final clonedExercises = mod.exercises.map((ex) {
+              final map = ex.toMap();
+              map['id'] = const Uuid().v4();
+              return Exercise.fromMap(map);
+            }).toList();
+
+            final sessionModule = ModuleBlock(
+              id: const Uuid().v4(),
+              name: mod.name,
+              exercises: clonedExercises,
+            );
+
+            sessionProvider.addExercise(session.id, sessionModule);
+            Navigator.pop(context);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 32,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Text(
+                    mod.name.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.orange,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 64,
+                width: 64,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.view_module_rounded,
+                  color: Colors.orange,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "${mod.exercises.length} EXOS",
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DialogExercisesGrid extends StatefulWidget {
+  final Session session;
+  const _DialogExercisesGrid({required this.session});
+
+  @override
+  State<_DialogExercisesGrid> createState() => _DialogExercisesGridState();
+}
+
+class _DialogExercisesGridState extends State<_DialogExercisesGrid> {
+  ExerciseType? _selectedFilter;
 
   Exercise _createDefaultExercise(AssetExercise asset) {
     switch (asset.type) {
@@ -345,6 +551,10 @@ class AssetSelectionGridDialog extends StatelessWidget {
         return IsoPositions(name: asset.name, sets: 0, restSeconds: 0);
       case ExerciseType.restBlock:
         return RestBlock(restSeconds: 0);
+      case ExerciseType.freeTime:
+        return FreeTime(name: asset.name);
+      default:
+        return RestBlock(restSeconds: 0);
     }
   }
 
@@ -353,70 +563,95 @@ class AssetSelectionGridDialog extends StatelessWidget {
     final assetProvider = context.watch<AssetProvider>();
     final sessionProvider = context.read<SessionProvider>();
     final colorScheme = Theme.of(context).colorScheme;
-    final assets = assetProvider.assets;
+    final allAssets = assetProvider.assets;
+    final assets = _selectedFilter == null
+        ? allAssets
+        : allAssets.where((a) => a.type == _selectedFilter).toList();
 
-    return Dialog(
-      backgroundColor: colorScheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: colorScheme.surfaceContainerHighest, width: 1),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "ADD EXERCISE",
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: colorScheme.primary,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 28),
-                  onPressed: () => Navigator.pop(context),
-                  color: colorScheme.onSurfaceVariant,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Flexible(
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const BouncingScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  mainAxisSpacing: 20,
-                  crossAxisSpacing: 20,
-                  childAspectRatio: 0.55,
-                ),
-                itemCount: assets.length,
-                itemBuilder: (context, index) {
-                  final asset = assets[index];
-                  return _AppIconWidget(
-                    icon: asset.type == ExerciseType.restBlock
-                        ? Icons.timer_rounded
-                        : Icons.fitness_center_rounded,
-                    label: asset.name,
-                    topLabel: asset.type.label.toUpperCase(),
-                    color: colorScheme.primary,
-                    onTap: () {
-                      final newEx = _createDefaultExercise(asset);
-                      sessionProvider.addExercise(session.id, newEx);
-                      Navigator.pop(context);
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+    return Column(
+      children: [
+        SizedBox(
+          height: 48,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 16),
+            children: [
+              _buildFilterChip("ALL", null, colorScheme),
+              ...ExerciseType.values.map((type) {
+                if (type == ExerciseType.moduleBlock)
+                  return const SizedBox.shrink();
+                return _buildFilterChip(
+                  type.name.toUpperCase(),
+                  type,
+                  colorScheme,
+                );
+              }),
+            ],
+          ),
         ),
+        Expanded(
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const BouncingScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 20,
+              crossAxisSpacing: 20,
+              childAspectRatio: 0.55,
+            ),
+            itemCount: assets.length,
+            itemBuilder: (context, index) {
+              final asset = assets[index];
+              return _AppIconWidget(
+                icon: asset.type == ExerciseType.restBlock
+                    ? Icons.timer_rounded
+                    : (asset.type == ExerciseType.freeTime
+                          ? Icons.timer_outlined
+                          : Icons.fitness_center_rounded),
+                label: asset.name,
+                topLabel: asset.type.label.toUpperCase(),
+                color: colorScheme.primary,
+                onTap: () {
+                  final newEx = _createDefaultExercise(asset);
+                  sessionProvider.addExercise(widget.session.id, newEx);
+                  Navigator.pop(context);
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterChip(
+    String label,
+    ExerciseType? type,
+    ColorScheme colorScheme,
+  ) {
+    final isSelected = _selectedFilter == type;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: FilterChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+          ),
+        ),
+        selected: isSelected,
+        onSelected: (_) => setState(() => _selectedFilter = type),
+        backgroundColor: colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.5,
+        ),
+        selectedColor: colorScheme.primary,
+        checkmarkColor: colorScheme.onPrimary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
     );
   }
@@ -444,16 +679,22 @@ class _AppIconWidget extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (topLabel != null) ...[
-            Text(
-              topLabel!,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-                color: color,
-                letterSpacing: 0.5,
+            SizedBox(
+              height: 32,
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Text(
+                  topLabel!,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -476,6 +717,167 @@ class _AppIconWidget extends StatelessWidget {
             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class SessionModuleCard extends StatefulWidget {
+  final ModuleBlock module;
+  final VoidCallback onDelete;
+  final ValueChanged<ModuleBlock> onUpdate;
+
+  const SessionModuleCard({
+    super.key,
+    required this.module,
+    required this.onDelete,
+    required this.onUpdate,
+  });
+
+  @override
+  State<SessionModuleCard> createState() => _SessionModuleCardState();
+}
+
+class _SessionModuleCardState extends State<SessionModuleCard> {
+  bool _isExpanded = false;
+
+  void _onReorderExercises(int oldIndex, int newIndex) {
+    if (newIndex > widget.module.exercises.length) {
+      newIndex = widget.module.exercises.length;
+    }
+    if (oldIndex < newIndex) newIndex -= 1;
+    final List<Exercise> currentExercises = List.from(widget.module.exercises);
+    final Exercise item = currentExercises.removeAt(oldIndex);
+    currentExercises.insert(newIndex, item);
+
+    final updatedModule = ModuleBlock(
+      id: widget.module.id,
+      name: widget.module.name,
+      exercises: currentExercises,
+      condition: widget.module.condition,
+    );
+    widget.onUpdate(updatedModule);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final accentColor = Colors.orange;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isLight
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+        border: Border.all(
+          color: _isExpanded
+              ? accentColor
+              : (isLight
+                    ? Colors.transparent
+                    : colorScheme.surfaceContainerHighest),
+          width: _isExpanded ? 2 : 1,
+        ),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          onExpansionChanged: (expanded) {
+            setState(() => _isExpanded = expanded);
+          },
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          leading: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.view_module_rounded, color: accentColor),
+          ),
+          title: Text(
+            widget.module.name.toUpperCase(),
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+          subtitle: Text(
+            "${widget.module.exercises.length} Exercises",
+            style: TextStyle(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          trailing: IconButton(
+            icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
+            onPressed: widget.onDelete,
+            style: IconButton.styleFrom(
+              backgroundColor: colorScheme.error.withValues(alpha: 0.1),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: widget.module.exercises.isNotEmpty
+                  ? ReorderableListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: widget.module.exercises.length,
+                      onReorder: _onReorderExercises,
+                      itemBuilder: (context, index) {
+                        final ex = widget.module.exercises[index];
+                        return Padding(
+                          key: ValueKey(ex.id),
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: ExerciseCard(
+                            exercise: ex,
+                            onDelete: () {
+                              final currentList = List<Exercise>.from(
+                                widget.module.exercises,
+                              );
+                              currentList.removeAt(index);
+                              widget.onUpdate(
+                                ModuleBlock(
+                                  id: widget.module.id,
+                                  name: widget.module.name,
+                                  exercises: currentList,
+                                  condition: widget.module.condition,
+                                ),
+                              );
+                            },
+                            onUpdate: (updatedEx) {
+                              final currentList = List<Exercise>.from(
+                                widget.module.exercises,
+                              );
+                              currentList[index] = updatedEx;
+                              widget.onUpdate(
+                                ModuleBlock(
+                                  id: widget.module.id,
+                                  name: widget.module.name,
+                                  exercises: currentList,
+                                  condition: widget.module.condition,
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -752,8 +1154,7 @@ class _ExerciseCardState extends State<ExerciseCard> {
     final colorScheme = Theme.of(context).colorScheme;
     final isLight = Theme.of(context).brightness == Brightness.light;
 
-    final accentColor =
-        Colors.green;
+    final accentColor = Colors.green;
 
     return DragTarget<ProgressionCondition>(
       hitTestBehavior: HitTestBehavior.opaque,
@@ -805,7 +1206,9 @@ class _ExerciseCardState extends State<ExerciseCard> {
                 child: Icon(
                   widget.exercise is RestBlock
                       ? Icons.timer_rounded
-                      : Icons.fitness_center_rounded,
+                      : (widget.exercise is FreeTime
+                            ? Icons.timer_outlined
+                            : Icons.fitness_center_rounded),
                   color: colorScheme.primary,
                 ),
               ),
@@ -882,6 +1285,8 @@ class _ExerciseCardState extends State<ExerciseCard> {
       summary = "ISOMETRIC${formatRest(ex.restSeconds)}";
     else if (ex is RestBlock)
       summary = "REST BLOCK${formatRest(ex.restSeconds)}";
+    else if (ex is FreeTime)
+      summary = "FREE TIME (Stopwatch)";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -954,6 +1359,12 @@ class _ExerciseCardState extends State<ExerciseCard> {
   Widget _buildInlineFormForType() {
     final ex = widget.exercise;
     final style = const TextStyle(fontWeight: FontWeight.bold);
+
+    if (ex is FreeTime) {
+      // Pas de paramètres à éditer pour Free Time.
+      return const SizedBox.shrink();
+    }
+
     if (ex is Classic) {
       return Column(
         mainAxisSize: MainAxisSize.min,

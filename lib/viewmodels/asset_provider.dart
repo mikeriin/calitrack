@@ -14,11 +14,13 @@ class AssetProvider extends ChangeNotifier {
   List<ProgressionCondition> _conditions = [];
   List<ProgressionCondition> get conditions => _conditions;
 
+  List<AssetModule> _modules = [];
+  List<AssetModule> get modules => _modules;
+
   AssetProvider() {
     loadAssets();
   }
 
-  // Rendue publique pour permettre le refresh manuel depuis l'UI (ex: après import)
   Future<void> loadAssets() async {
     try {
       final rawAssets = await _dbService.getAllAssets();
@@ -36,15 +38,24 @@ class AssetProvider extends ChangeNotifier {
       _conditions = [];
     }
 
+    try {
+      final rawModules = await _dbService.getAllModules();
+      _modules = List<AssetModule>.from(rawModules);
+    } catch (e) {
+      debugPrint("Erreur lors du chargement des modules: $e");
+      _modules = [];
+    }
+
     notifyListeners();
   }
 
-  // --- Import / Export de tous les assets ---
+  // --- Import / Export ---
 
   String exportAssetsToJson() {
     final map = {
       'exercises': _assets.map((e) => e.toMap()).toList(),
       'conditions': _conditions.map((e) => e.toMap()).toList(),
+      'modules': _modules.map((e) => e.toMap()).toList(),
     };
     return jsonEncode(map);
   }
@@ -53,39 +64,40 @@ class AssetProvider extends ChangeNotifier {
     try {
       final map = jsonDecode(jsonString) as Map<String, dynamic>;
 
-      // Import des Exercices
       if (map.containsKey('exercises')) {
         final List<dynamic> exList = map['exercises'];
         for (var exMap in exList) {
           final newAsset = AssetExercise.fromMap(exMap);
-          // Vérification de doublon (même nom et même type)
           bool exists = _assets.any(
             (a) =>
                 a.name.toLowerCase() == newAsset.name.toLowerCase() &&
                 a.type == newAsset.type,
           );
-
-          if (!exists) {
-            await _dbService.insertAsset(newAsset);
-          }
+          if (!exists) await _dbService.insertAsset(newAsset);
         }
       }
 
-      // Import des Conditions de progression
       if (map.containsKey('conditions')) {
         final List<dynamic> condList = map['conditions'];
         for (var condMap in condList) {
           final newCond = ProgressionCondition.fromMap(condMap);
-          // Vérification de doublon
           bool exists = _conditions.any(
             (c) =>
                 c.name.toLowerCase() == newCond.name.toLowerCase() &&
                 c.type == newCond.type,
           );
+          if (!exists) await _dbService.insertCondition(newCond);
+        }
+      }
 
-          if (!exists) {
-            await _dbService.insertCondition(newCond);
-          }
+      if (map.containsKey('modules')) {
+        final List<dynamic> modList = map['modules'];
+        for (var modMap in modList) {
+          final newMod = AssetModule.fromMap(modMap);
+          bool exists = _modules.any(
+            (m) => m.name.toLowerCase() == newMod.name.toLowerCase(),
+          );
+          if (!exists) await _dbService.insertModule(newMod);
         }
       }
 
@@ -118,7 +130,7 @@ class AssetProvider extends ChangeNotifier {
       await _dbService.insertCondition(newCondition);
       await loadAssets();
     } catch (e) {
-      debugPrint("Erreur lors de l'ajout de la condition: $e");
+      debugPrint("Erreur ajout condition: $e");
     }
   }
 
@@ -127,7 +139,7 @@ class AssetProvider extends ChangeNotifier {
       await _dbService.insertCondition(updatedCondition);
       await loadAssets();
     } catch (e) {
-      debugPrint("Erreur lors de la mise à jour de la condition: $e");
+      debugPrint("Erreur update condition: $e");
     }
   }
 
@@ -136,7 +148,22 @@ class AssetProvider extends ChangeNotifier {
       await _dbService.deleteCondition(conditionId);
       await loadAssets();
     } catch (e) {
-      debugPrint("Erreur lors de la suppression de la condition: $e");
+      debugPrint("Erreur suppression condition: $e");
     }
+  }
+
+  Future<void> addModule(AssetModule newModule) async {
+    await _dbService.insertModule(newModule);
+    await loadAssets();
+  }
+
+  Future<void> updateModule(AssetModule updatedModule) async {
+    await _dbService.insertModule(updatedModule);
+    await loadAssets();
+  }
+
+  Future<void> deleteModule(String moduleId) async {
+    await _dbService.deleteModule(moduleId);
+    await loadAssets();
   }
 }

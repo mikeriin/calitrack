@@ -157,7 +157,19 @@ class LevelingScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            _buildMilestoneCard(context, 10, "BEGINNER", 500, leveling),
+
+            // Génération dynamique de tous les paliers disponibles dans le Provider
+            ...leveling.availableMilestones.map((milestone) {
+              return _buildMilestoneCard(
+                context,
+                milestone.level,
+                milestone.sessionName,
+                milestone.coins,
+                leveling,
+              );
+            }),
+
+            const SizedBox(height: 80), // Espace final pour pouvoir scroller
           ],
         ),
       ),

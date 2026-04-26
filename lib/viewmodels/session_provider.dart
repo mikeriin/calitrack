@@ -28,6 +28,8 @@ class SessionProvider extends ChangeNotifier {
   bool get keepAwake => _progressRepo.keepAwake;
 
   SessionProvider(this._progressRepo) {
+    _progress = _progressRepo
+        .currentProgress; // Synchronous initialization prevents reset bug on restart
     _loadData();
     _progressSub = _progressRepo.progressFlow.listen((newProgress) {
       _progress = newProgress;
@@ -49,9 +51,6 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- OBTENTION GLOBALE ---
-  // Permet à n'importe quel écran de récupérer une session par ID,
-  // qu'elle soit standalone ou dans un programme
   Session? getSessionById(String id) {
     try {
       return _allSessions.firstWhere((s) => s.id == id);
@@ -72,7 +71,6 @@ class SessionProvider extends ChangeNotifier {
     final now = DateTime.now();
     final currentDay = Day.values[now.weekday - 1];
 
-    // Vérifie d'abord s'il y a un programme actif
     Program? activeProgram;
     try {
       activeProgram = _allPrograms.firstWhere((p) => p.isActive);
@@ -81,7 +79,6 @@ class SessionProvider extends ChangeNotifier {
     }
 
     if (activeProgram != null) {
-      // 1. Un programme est actif : on cherche UNIQUEMENT dans ce programme
       for (var week in activeProgram.weeks) {
         bool weekHasUncompleted = false;
         Session? candidateForToday;
@@ -95,17 +92,14 @@ class SessionProvider extends ChangeNotifier {
           }
         }
 
-        // Si on trouve une semaine avec des séances non terminées, on s'arrête là
-        // et on prend la séance correspondant au jour actuel (si elle existe)
         if (weekHasUncompleted) {
           if (candidateForToday != null) {
             _sessionOfTheDay = candidateForToday;
           }
-          break; // On s'arrête à la première semaine non terminée
+          break;
         }
       }
     } else {
-      // 2. AUCUN programme n'est actif : on fallback sur les séances isolées
       try {
         _sessionOfTheDay = _allSessions.firstWhere((s) => s.day == currentDay);
       } catch (e) {
@@ -156,7 +150,6 @@ class SessionProvider extends ChangeNotifier {
     );
     _progressRepo.saveProgress(newProgress);
 
-    // CORRECTION : S'assurer que l'écran "Session Of The Day" affiche bien la séance que l'on vient de lancer
     final forcedSession = getSessionById(sessionId);
     if (forcedSession != null) {
       _sessionOfTheDay = forcedSession;
@@ -177,7 +170,7 @@ class SessionProvider extends ChangeNotifier {
   void resetSession() {
     if (_progressRepo.keepAwake) WakelockPlus.disable();
     _progressRepo.clearProgress();
-    _calculateSessionOfTheDay(); // Recalculer la séance du jour d'origine
+    _calculateSessionOfTheDay();
     notifyListeners();
   }
 
@@ -202,7 +195,6 @@ class SessionProvider extends ChangeNotifier {
 
   Future<void> toggleProgramActive(String programId, bool isActive) async {
     if (isActive) {
-      // Désactiver tous les autres
       for (var p in _allPrograms) {
         if (p.id != programId && p.isActive) {
           p.isActive = false;
@@ -219,7 +211,7 @@ class SessionProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // SESSION & EXERCISE OPERATIONS (Universelles)
+  // SESSION & EXERCISE OPERATIONS
   // ==========================================
 
   Future<void> addSession(Session newSession) async {
@@ -228,7 +220,6 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<void> updateSession(Session updatedSession) async {
-    // Tente de mettre à jour dans les sessions isolées
     int sIdx = _allSessions.indexWhere((s) => s.id == updatedSession.id);
     if (sIdx != -1) {
       await _dbService.insertSession(updatedSession);
@@ -236,7 +227,6 @@ class SessionProvider extends ChangeNotifier {
       return;
     }
 
-    // Sinon, met à jour dans le programme correspondant
     for (var p in _allPrograms) {
       for (var w in p.weeks) {
         int wSidx = w.sessions.indexWhere((s) => s.id == updatedSession.id);
@@ -267,7 +257,6 @@ class SessionProvider extends ChangeNotifier {
     await _loadData();
   }
 
-  // Mise à jour magique des exercices : cherche le parent dans _allSessions OU _allPrograms
   Future<void> addExercise(String sessionId, Exercise newExercise) async {
     final session = getSessionById(sessionId);
     if (session != null) {
@@ -381,13 +370,11 @@ class SessionProvider extends ChangeNotifier {
   // IMPORTS (SESSION & PROGRAMME)
   // ==========================================
 
-  // Logique fiabilisée pour extraire uniquement les exercices principaux d'une séance
   Future<void> _extractAssetsFromExercises(List<Exercise> exercises) async {
     final existingAssets = await _dbService.getAllAssets();
     final existingConditions = await _dbService.getAllConditions();
 
     for (final ex in exercises) {
-      // 1. On sauvegarde la condition associée s'il y en a une
       if (ex.condition != null) {
         final cond = ex.condition!;
         bool condExists = existingConditions.any(
@@ -402,7 +389,6 @@ class SessionProvider extends ChangeNotifier {
         }
       }
 
-      // 2. On sauvegarde l'exercice principal dans les assets (si ce n'est pas un bloc de repos)
       final exType = _getTypeFromExercise(ex);
       if (exType != ExerciseType.restBlock) {
         bool assetExists = existingAssets.any(
@@ -418,9 +404,7 @@ class SessionProvider extends ChangeNotifier {
             condition: ex.condition,
           );
           await _dbService.insertAsset(newAsset);
-          existingAssets.add(
-            newAsset,
-          ); // On met à jour la liste locale pour la suite de la boucle
+          existingAssets.add(newAsset);
         }
       }
     }
@@ -439,10 +423,7 @@ class SessionProvider extends ChangeNotifier {
       }
 
       final newSession = Session.fromMap(map);
-
-      // On extrait et ajoute les assets
       await _extractAssetsFromExercises(newSession.exercises);
-
       await addSession(newSession);
     } catch (e) {
       debugPrint("Error importing session: $e");
@@ -487,7 +468,6 @@ class SessionProvider extends ChangeNotifier {
 
       final newProgram = Program.fromMap(map);
 
-      // On extrait et ajoute les assets de CHAQUE séance de CHAQUE semaine
       for (final week in newProgram.weeks) {
         for (final session in week.sessions) {
           await _extractAssetsFromExercises(session.exercises);
@@ -524,7 +504,6 @@ class SessionProvider extends ChangeNotifier {
     );
     await _dbService.insertHistorySession(historySession);
 
-    // --- LOGIQUE DE VALIDATION DANS LE PROGRAMME ACTIF ---
     try {
       final activeProg = _allPrograms.firstWhere((p) => p.isActive);
       bool isPartOfProgram = false;
@@ -540,7 +519,6 @@ class SessionProvider extends ChangeNotifier {
         await _dbService.insertProgram(activeProg);
       }
     } catch (_) {}
-    // -----------------------------------------------------
 
     List<HistoryExercise> exercisesToSave = [];
     List<HistorySet> setsToSave = [];
@@ -582,11 +560,10 @@ class SessionProvider extends ChangeNotifier {
     await _dbService.insertHistoryExercises(exercisesToSave);
     await _dbService.insertHistorySets(setsToSave);
 
-    await _loadData(); // Force recalcul de session of the day
+    await _loadData();
     updateProgress(_progress.copyWith(isSaved: true, stats: finalStats));
   }
 
-  // Helper type déduction (identique)
   ExerciseType _getTypeFromExercise(Exercise ex) {
     if (ex is Classic) return ExerciseType.classic;
     if (ex is Pyramid) return ExerciseType.pyramid;
@@ -598,6 +575,7 @@ class SessionProvider extends ChangeNotifier {
     if (ex is Circuit) return ExerciseType.circuit;
     if (ex is IsoMax) return ExerciseType.isoMax;
     if (ex is IsoPositions) return ExerciseType.isoPositions;
+    if (ex is FreeTime) return ExerciseType.freeTime;
     return ExerciseType.restBlock;
   }
 }

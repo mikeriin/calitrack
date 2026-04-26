@@ -106,9 +106,27 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
     final progress = provider.progress;
     final colorScheme = Theme.of(context).colorScheme;
 
-    final activeSession = progress.sessionId.isNotEmpty
+    final rawActiveSession = progress.sessionId.isNotEmpty
         ? provider.getSessionById(progress.sessionId) ?? sessionOfTheDay
         : sessionOfTheDay;
+
+    Session? activeSession;
+    if (rawActiveSession != null) {
+      List<Exercise> flattenedExercises = [];
+      for (var ex in rawActiveSession.exercises) {
+        if (ex is ModuleBlock) {
+          flattenedExercises.addAll(ex.exercises);
+        } else {
+          flattenedExercises.add(ex);
+        }
+      }
+      activeSession = Session(
+        id: rawActiveSession.id,
+        title: rawActiveSession.title,
+        day: rawActiveSession.day,
+        exercises: flattenedExercises,
+      );
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_hasLoadedHistory) {
@@ -759,6 +777,15 @@ class _SessionOfTheDayScreenState extends State<SessionOfTheDayScreen> {
         session: session,
       );
     }
+    if (exercise is FreeTime) {
+      return FreeTimeWorkoutView(
+        key: exKey,
+        exercise: exercise,
+        progress: progress,
+        provider: provider,
+        session: session,
+      );
+    }
     return const SizedBox.shrink();
   }
 }
@@ -793,6 +820,7 @@ void _completeSetOrExercise(
         currentExIdx: progress.currentExIdx + 1,
         currentSetIdx: 1,
         logs: [...progress.logs, log],
+        activeExState: const {}, // Toujours nettoyer l'état à la fin !
       ),
     );
   } else if (isLastSet && (restTimeSeconds == 0 || isNextRestBlock)) {
@@ -804,6 +832,7 @@ void _completeSetOrExercise(
         currentExIdx: progress.currentExIdx + 1,
         currentSetIdx: 1,
         logs: [...progress.logs, log],
+        activeExState: const {},
       ),
     );
   } else {
@@ -814,12 +843,12 @@ void _completeSetOrExercise(
         restEndTime:
             DateTime.now().millisecondsSinceEpoch + (restTimeSeconds * 1000),
         logs: [...progress.logs, log],
+        activeExState: const {},
       ),
     );
   }
 }
 
-// Helper pour le style des TextFields numériques
 InputDecoration _digitalInputDecoration(ColorScheme colorScheme) {
   return InputDecoration(
     border: OutlineInputBorder(
@@ -835,6 +864,197 @@ InputDecoration _digitalInputDecoration(ColorScheme colorScheme) {
 // ==========================================
 // EXERCISE SPECIFIC VIEWS
 // ==========================================
+
+class FreeTimeWorkoutView extends StatefulWidget {
+  final FreeTime exercise;
+  final SessionProgress progress;
+  final SessionProvider provider;
+  final Session session;
+  const FreeTimeWorkoutView({
+    super.key,
+    required this.exercise,
+    required this.progress,
+    required this.provider,
+    required this.session,
+  });
+  @override
+  State<FreeTimeWorkoutView> createState() => _FreeTimeWorkoutViewState();
+}
+
+class _FreeTimeWorkoutViewState extends State<FreeTimeWorkoutView> {
+  Timer? _timer;
+
+  bool get _isRunning => widget.progress.activeExState['isRunning'] ?? false;
+  int get _accumulatedMillis =>
+      widget.progress.activeExState['accumulatedMillis'] ?? 0;
+  int get _lastStartTime => widget.progress.activeExState['lastStartTime'] ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_isRunning && mounted) {
+        setState(() {}); // Déclenche un rebuild pour MAJ l'affichage
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _toggleTimer() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_isRunning) {
+      widget.provider.updateProgress(
+        widget.progress.copyWith(
+          activeExState: {
+            'isRunning': false,
+            'accumulatedMillis': _accumulatedMillis + (now - _lastStartTime),
+            'lastStartTime': 0,
+          },
+        ),
+      );
+    } else {
+      widget.provider.updateProgress(
+        widget.progress.copyWith(
+          activeExState: {
+            'isRunning': true,
+            'accumulatedMillis': _accumulatedMillis,
+            'lastStartTime': now,
+          },
+        ),
+      );
+    }
+  }
+
+  void _finishExercise(int finalSeconds) {
+    final log = WorkoutLogEntry(
+      exerciseName: widget.exercise.name,
+      exerciseType: ExerciseType.freeTime,
+      setIndex: 1,
+      repsCompleted: finalSeconds,
+      durationSeconds: finalSeconds,
+    );
+    _completeSetOrExercise(
+      widget.provider,
+      widget.progress,
+      widget.session,
+      log,
+      1,
+      0,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    int secondsElapsed = _accumulatedMillis ~/ 1000;
+    if (_isRunning) {
+      secondsElapsed =
+          (_accumulatedMillis +
+              (DateTime.now().millisecondsSinceEpoch - _lastStartTime)) ~/
+          1000;
+    }
+
+    final min = secondsElapsed ~/ 60;
+    final sec = secondsElapsed % 60;
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            "FREE TIME • STOPWATCH",
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+          ),
+        ),
+        const SizedBox(height: 64),
+        Container(
+          padding: const EdgeInsets.all(40),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: _isRunning
+                    ? colorScheme.primary.withValues(alpha: 0.2)
+                    : Colors.black.withValues(alpha: 0.05),
+                blurRadius: 40,
+                spreadRadius: 10,
+              ),
+            ],
+            border: Border.all(
+              color: _isRunning
+                  ? colorScheme.primary
+                  : colorScheme.surfaceContainerHighest,
+              width: 4,
+            ),
+          ),
+          child: Text(
+            "${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}",
+            style: Theme.of(context).textTheme.displayLarge?.copyWith(
+              fontSize: 72,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              color: _isRunning ? colorScheme.primary : colorScheme.onSurface,
+            ),
+          ),
+        ),
+        const SizedBox(height: 64),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FloatingActionButton.large(
+              onPressed: _toggleTimer,
+              backgroundColor: _isRunning
+                  ? colorScheme.errorContainer
+                  : colorScheme.primary,
+              foregroundColor: _isRunning
+                  ? colorScheme.onErrorContainer
+                  : colorScheme.onPrimary,
+              elevation: 8,
+              child: Icon(
+                _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                size: 40,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 48),
+        SizedBox(
+          width: double.infinity,
+          height: 64,
+          child: FilledButton(
+            onPressed: () => _finishExercise(secondsElapsed),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.secondary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: const Text(
+              "LOG EXERCISE",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class ClassicWorkoutView extends StatefulWidget {
   final Classic exercise;
@@ -858,7 +1078,19 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
   @override
   void initState() {
     super.initState();
-    _repsController.text = widget.exercise.reps.toString();
+    _repsController.text =
+        widget.progress.activeExState['input'] ??
+        widget.exercise.reps.toString();
+  }
+
+  @override
+  void didUpdateWidget(ClassicWorkoutView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.progress.currentSetIdx != widget.progress.currentSetIdx) {
+      _repsController.text =
+          widget.progress.activeExState['input'] ??
+          widget.exercise.reps.toString();
+    }
   }
 
   void _onDone() {
@@ -881,7 +1113,6 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
       widget.exercise.sets,
       widget.exercise.rest,
     );
-    _repsController.text = widget.exercise.reps.toString();
   }
 
   void _skipRest() {
@@ -894,6 +1125,7 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
         currentExIdx: isLastSet
             ? widget.progress.currentExIdx + 1
             : widget.progress.currentExIdx,
+        activeExState: const {},
       ),
     );
   }
@@ -1007,6 +1239,16 @@ class _ClassicWorkoutViewState extends State<ClassicWorkoutView> {
                   controller: _repsController,
                   keyboardType: TextInputType.number,
                   textInputAction: TextInputAction.done,
+                  onChanged: (val) {
+                    widget.provider.updateProgress(
+                      widget.progress.copyWith(
+                        activeExState: {
+                          ...widget.progress.activeExState,
+                          'input': val,
+                        },
+                      ),
+                    );
+                  },
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
                     fontSize: 80,
                     height: 1,
@@ -1065,21 +1307,48 @@ class AmrapWorkoutView extends StatefulWidget {
 }
 
 class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
-  bool _isStarted = false, _isTimeUp = false;
-  int _endTime = 0, _roundsCompleted = 0;
   final _extraRepsCtrl = TextEditingController();
+
+  bool get _isStarted => widget.progress.activeExState['isStarted'] ?? false;
+  int get _endTime => widget.progress.activeExState['endTime'] ?? 0;
+  int get _roundsCompleted =>
+      widget.progress.activeExState['roundsCompleted'] ?? 0;
+  bool get _isTimeUp => widget.progress.activeExState['isTimeUp'] ?? false;
 
   void _startAmrap() {
     FocusScope.of(context).unfocus();
-    setState(() {
-      _isStarted = true;
-      _endTime =
-          DateTime.now().millisecondsSinceEpoch +
-          (widget.exercise.timeCapMinutes * 60 * 1000);
-    });
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {
+          'isStarted': true,
+          'endTime':
+              DateTime.now().millisecondsSinceEpoch +
+              (widget.exercise.timeCapMinutes * 60 * 1000),
+          'roundsCompleted': 0,
+          'isTimeUp': false,
+        },
+      ),
+    );
   }
 
-  void _onTimeUp() => setState(() => _isTimeUp = true);
+  void _onTimeUp() {
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {...widget.progress.activeExState, 'isTimeUp': true},
+      ),
+    );
+  }
+
+  void _updateRounds(int newRounds) {
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {
+          ...widget.progress.activeExState,
+          'roundsCompleted': newRounds,
+        },
+      ),
+    );
+  }
 
   void _logScore() {
     FocusScope.of(context).unfocus();
@@ -1254,7 +1523,7 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
                     IconButton(
                       onPressed: () {
                         if (_roundsCompleted > 0) {
-                          setState(() => _roundsCompleted--);
+                          _updateRounds(_roundsCompleted - 1);
                         }
                       },
                       icon: const Icon(Icons.remove_rounded, size: 32),
@@ -1272,7 +1541,7 @@ class _AmrapWorkoutViewState extends State<AmrapWorkoutView> {
                       ),
                     ),
                     IconButton(
-                      onPressed: () => setState(() => _roundsCompleted++),
+                      onPressed: () => _updateRounds(_roundsCompleted + 1),
                       icon: Icon(
                         Icons.add_rounded,
                         size: 32,
@@ -1411,28 +1680,35 @@ class EmomWorkoutView extends StatefulWidget {
 }
 
 class _EmomWorkoutViewState extends State<EmomWorkoutView> {
-  bool _isStarted = false;
-  int _endTime = 0;
+  bool get _isStarted => widget.progress.activeExState['isStarted'] ?? false;
+  int get _endTime => widget.progress.activeExState['endTime'] ?? 0;
 
   void _startEmom() {
-    setState(() {
-      _isStarted = true;
-      _endTime =
-          DateTime.now().millisecondsSinceEpoch +
-          (widget.exercise.everyXSeconds * 1000);
-    });
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {
+          'isStarted': true,
+          'endTime':
+              DateTime.now().millisecondsSinceEpoch +
+              (widget.exercise.everyXSeconds * 1000),
+        },
+      ),
+    );
   }
 
   void _onRoundFinished() {
     final currentRound = widget.progress.currentSetIdx;
     if (currentRound < widget.exercise.totalRounds) {
-      setState(
-        () => _endTime =
-            DateTime.now().millisecondsSinceEpoch +
-            (widget.exercise.everyXSeconds * 1000),
-      );
       widget.provider.updateProgress(
-        widget.progress.copyWith(currentSetIdx: currentRound + 1),
+        widget.progress.copyWith(
+          currentSetIdx: currentRound + 1,
+          activeExState: {
+            'isStarted': true,
+            'endTime':
+                DateTime.now().millisecondsSinceEpoch +
+                (widget.exercise.everyXSeconds * 1000),
+          },
+        ),
       );
     } else {
       _finishExercise();
@@ -1444,11 +1720,16 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
       0,
       (sum, m) => sum + m.reps,
     );
+    final weight = widget.exercise.movements.isNotEmpty
+        ? widget.exercise.movements.first.weight
+        : 0.0;
+
     final log = WorkoutLogEntry(
       exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.emom,
       setIndex: 1,
       repsCompleted: repsPerRound * widget.progress.currentSetIdx,
+      weightAdded: weight, // On passe le poids pour l'afficher dans le résumé
     );
     _completeSetOrExercise(
       widget.provider,
@@ -1526,7 +1807,7 @@ class _EmomWorkoutViewState extends State<EmomWorkoutView> {
                         const SizedBox(width: 16),
                         Expanded(
                           child: Text(
-                            m.name,
+                            "${m.name}${m.weight > 0 ? ' @ ${m.weight}kg' : ''}",
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -1608,27 +1889,47 @@ class RestPauseWorkoutView extends StatefulWidget {
 
 class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
   final _repsController = TextEditingController();
-  bool _isLocalResting = false;
-  int _endTime = 0;
-  final List<int> _history = [];
+
+  bool get _isLocalResting =>
+      widget.progress.activeExState['isLocalResting'] ?? false;
+  int get _endTime => widget.progress.activeExState['endTime'] ?? 0;
+  List<int> get _history =>
+      List<int>.from(widget.progress.activeExState['history'] ?? []);
+
+  @override
+  void initState() {
+    super.initState();
+    _repsController.text = widget.progress.activeExState['input'] ?? "";
+  }
 
   void _startRest() {
     FocusScope.of(context).unfocus();
-    setState(() {
-      _isLocalResting = true;
-      _endTime =
-          DateTime.now().millisecondsSinceEpoch +
-          (widget.exercise.restSeconds * 1000);
-    });
+    final h = _history;
+    h.add(int.tryParse(_repsController.text) ?? 0);
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {
+          'isLocalResting': true,
+          'endTime':
+              DateTime.now().millisecondsSinceEpoch +
+              (widget.exercise.restSeconds * 1000),
+          'history': h,
+          'input': '',
+        },
+      ),
+    );
+    _repsController.clear();
   }
 
   void _onRestFinished() {
-    _history.add(int.tryParse(_repsController.text) ?? 0);
-    _repsController.clear();
-    setState(() => _isLocalResting = false);
     widget.provider.updateProgress(
       widget.progress.copyWith(
         currentSetIdx: widget.progress.currentSetIdx + 1,
+        activeExState: {
+          'isLocalResting': false,
+          'history': _history,
+          'input': '',
+        },
       ),
     );
   }
@@ -1656,6 +1957,7 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
         currentExIdx: widget.progress.currentExIdx + 1,
         currentSetIdx: 1,
         logs: [...widget.progress.logs, ...newLogs],
+        activeExState: const {},
       ),
     );
   }
@@ -1774,6 +2076,16 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
                   TextField(
                     controller: _repsController,
                     keyboardType: TextInputType.number,
+                    onChanged: (val) {
+                      widget.provider.updateProgress(
+                        widget.progress.copyWith(
+                          activeExState: {
+                            ...widget.progress.activeExState,
+                            'input': val,
+                          },
+                        ),
+                      );
+                    },
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
                       fontSize: 80,
                       height: 1,
@@ -1840,6 +2152,16 @@ class _RestPauseWorkoutViewState extends State<RestPauseWorkoutView> {
                   TextField(
                     controller: _repsController,
                     keyboardType: TextInputType.number,
+                    onChanged: (val) {
+                      widget.provider.updateProgress(
+                        widget.progress.copyWith(
+                          activeExState: {
+                            ...widget.progress.activeExState,
+                            'input': val,
+                          },
+                        ),
+                      );
+                    },
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
                       fontSize: 80,
                       height: 1,
@@ -1899,9 +2221,20 @@ class ClusterWorkoutView extends StatefulWidget {
 }
 
 class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
-  bool _isStarted = false;
-  int _currentCount = 0, _secondsElapsed = 0;
   Timer? _timer;
+
+  bool get _isStarted => widget.progress.activeExState['isStarted'] ?? false;
+  int get _currentCount => widget.progress.activeExState['currentCount'] ?? 0;
+  int get _startTime => widget.progress.activeExState['startTime'] ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_isStarted && mounted) setState(() {});
+    });
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -1909,26 +2242,42 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
   }
 
   void _startCluster() {
-    setState(() => _isStarted = true);
-    _timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => setState(() => _secondsElapsed++),
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {
+          'isStarted': true,
+          'currentCount': 0,
+          'startTime': DateTime.now().millisecondsSinceEpoch,
+        },
+      ),
     );
   }
 
   void _incrementReps() {
-    setState(() => _currentCount += widget.exercise.incrementFactor);
-    if (_currentCount >= widget.exercise.targetReps) _finishExercise();
+    final newCount = _currentCount + widget.exercise.incrementFactor;
+    if (newCount >= widget.exercise.targetReps) {
+      _finishExercise(newCount);
+    } else {
+      widget.provider.updateProgress(
+        widget.progress.copyWith(
+          activeExState: {
+            ...widget.progress.activeExState,
+            'currentCount': newCount,
+          },
+        ),
+      );
+    }
   }
 
-  void _finishExercise() {
-    _timer?.cancel();
+  void _finishExercise(int finalCount) {
+    final elapsed =
+        (DateTime.now().millisecondsSinceEpoch - _startTime) ~/ 1000;
     final log = WorkoutLogEntry(
       exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.cluster,
       setIndex: 1,
-      repsCompleted: _currentCount,
-      durationSeconds: _secondsElapsed,
+      repsCompleted: finalCount,
+      durationSeconds: elapsed,
     );
     _completeSetOrExercise(
       widget.provider,
@@ -1943,8 +2292,11 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final min = _secondsElapsed ~/ 60;
-    final sec = _secondsElapsed % 60;
+    int secondsElapsed = _isStarted
+        ? (DateTime.now().millisecondsSinceEpoch - _startTime) ~/ 1000
+        : 0;
+    final min = secondsElapsed ~/ 60;
+    final sec = secondsElapsed % 60;
 
     return Column(
       children: [
@@ -2055,7 +2407,7 @@ class _ClusterWorkoutViewState extends State<ClusterWorkoutView> {
           ),
           const SizedBox(height: 48),
           TextButton(
-            onPressed: _finishExercise,
+            onPressed: () => _finishExercise(_currentCount),
             child: Text(
               "FINISH EARLY",
               style: TextStyle(
@@ -2089,6 +2441,7 @@ class CircuitWorkoutView extends StatefulWidget {
 
 class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
   late List<TextEditingController> _controllers;
+
   @override
   void initState() {
     super.initState();
@@ -2096,9 +2449,14 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
   }
 
   void _initControllers() {
-    _controllers = widget.exercise.movements
-        .map((m) => TextEditingController(text: m.reps.toString()))
-        .toList();
+    List<String> savedInputs = List<String>.from(
+      widget.progress.activeExState['inputs'] ?? [],
+    );
+    _controllers = List.generate(widget.exercise.movements.length, (index) {
+      String val = widget.exercise.movements[index].reps.toString();
+      if (index < savedInputs.length) val = savedInputs[index];
+      return TextEditingController(text: val);
+    });
   }
 
   @override
@@ -2118,6 +2476,15 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  void _saveInputs() {
+    final inputs = _controllers.map((c) => c.text).toList();
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {...widget.progress.activeExState, 'inputs': inputs},
+      ),
+    );
   }
 
   void _onDone() {
@@ -2153,6 +2520,7 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
         currentExIdx: isLastSet
             ? widget.progress.currentExIdx + 1
             : widget.progress.currentExIdx,
+        activeExState: const {},
       ),
     );
   }
@@ -2286,6 +2654,7 @@ class _CircuitWorkoutViewState extends State<CircuitWorkoutView> {
                   TextField(
                     controller: _controllers[index],
                     keyboardType: TextInputType.number,
+                    onChanged: (_) => _saveInputs(),
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
                       fontSize: 64,
                       height: 1,
@@ -2343,9 +2712,19 @@ class IsoMaxWorkoutView extends StatefulWidget {
 }
 
 class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
-  String _phase = "IDLE";
-  int _prepTime = 5, _secondsElapsed = 0;
+  String get _phase => widget.progress.activeExState['phase'] ?? "IDLE";
+  int get _timestamp => widget.progress.activeExState['timestamp'] ?? 0;
+
   Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_phase != "IDLE" && mounted) setState(() {});
+    });
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -2353,38 +2732,33 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
   }
 
   void _startCountdown() {
-    setState(() {
-      _phase = "COUNTDOWN";
-      _prepTime = 5;
-    });
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_prepTime > 1) {
-        setState(() => _prepTime--);
-      } else {
-        timer.cancel();
-        _startHold();
-      }
-    });
-  }
-
-  void _startHold() {
-    setState(() {
-      _phase = "RUNNING";
-      _secondsElapsed = 0;
-    });
-    _timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => setState(() => _secondsElapsed++),
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {
+          'phase': 'COUNTDOWN',
+          'timestamp': DateTime.now().millisecondsSinceEpoch + 5000,
+        },
+      ),
     );
   }
 
-  void _stopAndSave() {
-    _timer?.cancel();
+  void _startHold() {
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {
+          'phase': 'RUNNING',
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        },
+      ),
+    );
+  }
+
+  void _stopAndSave(int secondsElapsed) {
     final log = WorkoutLogEntry(
       exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.isoMax,
       setIndex: widget.progress.currentSetIdx,
-      repsCompleted: (_secondsElapsed - 3).clamp(0, 999),
+      repsCompleted: (secondsElapsed).clamp(0, 999),
       weightAdded: widget.exercise.weight,
       restTimeSeconds: widget.exercise.restSeconds,
     );
@@ -2396,12 +2770,6 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
       widget.exercise.sets,
       widget.exercise.restSeconds,
     );
-    if (mounted) {
-      setState(() {
-        _phase = "IDLE";
-        _secondsElapsed = 0;
-      });
-    }
   }
 
   void _skipRest() {
@@ -2414,6 +2782,7 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
         currentExIdx: isLastSet
             ? widget.progress.currentExIdx + 1
             : widget.progress.currentExIdx,
+        activeExState: const {},
       ),
     );
   }
@@ -2421,6 +2790,23 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    int prepTime = 5;
+    int secondsElapsed = 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    if (_phase == "COUNTDOWN") {
+      prepTime = ((_timestamp - now) / 1000).ceil();
+      if (prepTime <= 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_phase == "COUNTDOWN") _startHold();
+        });
+        prepTime = 0;
+      }
+    } else if (_phase == "RUNNING") {
+      secondsElapsed = ((now - _timestamp) / 1000).floor();
+    }
+
     if (widget.progress.isResting) {
       return Column(
         children: [
@@ -2525,7 +2911,7 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
           ),
           const SizedBox(height: 16),
           Text(
-            "-$_prepTime",
+            "-$prepTime",
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
               fontSize: 140,
               color: colorScheme.primary,
@@ -2542,7 +2928,7 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
           ),
           const SizedBox(height: 16),
           Text(
-            "$_secondsElapsed",
+            "$secondsElapsed",
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
               fontSize: 140,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -2553,7 +2939,7 @@ class _IsoMaxWorkoutViewState extends State<IsoMaxWorkoutView> {
             width: double.infinity,
             height: 64,
             child: FilledButton(
-              onPressed: _stopAndSave,
+              onPressed: () => _stopAndSave(secondsElapsed),
               style: FilledButton.styleFrom(
                 backgroundColor: colorScheme.error,
                 shape: RoundedRectangleBorder(
@@ -2594,9 +2980,20 @@ class IsoPositionsWorkoutView extends StatefulWidget {
 }
 
 class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
-  String _phase = "IDLE";
-  int _prepTime = 5, _currentHoldIndex = 0, _currentHoldTime = 0;
+  String get _phase => widget.progress.activeExState['phase'] ?? "IDLE";
+  int get _sequenceStartTime =>
+      widget.progress.activeExState['sequenceStartTime'] ?? 0;
+
   Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_phase != "IDLE" && mounted) setState(() {});
+    });
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -2605,39 +3002,17 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
 
   void _startSequence() {
     if (widget.exercise.movements.isEmpty) return;
-    setState(() {
-      _phase = "PREP";
-      _prepTime = 5;
-      _currentHoldIndex = 0;
-      _currentHoldTime = widget.exercise.movements[0].reps;
-    });
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_phase == "PREP") {
-        if (_prepTime > 1) {
-          setState(() => _prepTime--);
-        } else {
-          setState(() => _phase = "RUNNING");
-        }
-      } else if (_phase == "RUNNING") {
-        if (_currentHoldTime > 1) {
-          setState(() => _currentHoldTime--);
-        } else {
-          if (_currentHoldIndex < widget.exercise.movements.length - 1) {
-            setState(() {
-              _currentHoldIndex++;
-              _currentHoldTime =
-                  widget.exercise.movements[_currentHoldIndex].reps;
-            });
-          } else {
-            _stopAndSave();
-          }
-        }
-      }
-    });
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {
+          'phase': 'ACTIVE',
+          'sequenceStartTime': DateTime.now().millisecondsSinceEpoch,
+        },
+      ),
+    );
   }
 
   void _stopAndSave() {
-    _timer?.cancel();
     final log = WorkoutLogEntry(
       exerciseName: widget.exercise.name,
       exerciseType: ExerciseType.isoPositions,
@@ -2656,7 +3031,6 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
       widget.exercise.sets,
       widget.exercise.restSeconds,
     );
-    if (mounted) setState(() => _phase = "IDLE");
   }
 
   void _skipRest() {
@@ -2669,6 +3043,7 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
         currentExIdx: isLastSet
             ? widget.progress.currentExIdx + 1
             : widget.progress.currentExIdx,
+        activeExState: const {},
       ),
     );
   }
@@ -2735,6 +3110,47 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
       );
     }
 
+    int prepTime = 5;
+    int currentHoldIndex = 0;
+    int currentHoldTime = 0;
+    String displayPhase = "IDLE";
+
+    if (_phase == "ACTIVE") {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final elapsedTotal = (now - _sequenceStartTime) ~/ 1000;
+
+      if (elapsedTotal < 5) {
+        displayPhase = "PREP";
+        prepTime = 5 - elapsedTotal;
+      } else {
+        displayPhase = "RUNNING";
+        int timeConsumed = 5; // Prep time
+        bool finished = false;
+
+        for (int i = 0; i < widget.exercise.movements.length; i++) {
+          final movDuration =
+              widget.exercise.movements[i].reps; // reps is duration here
+          if (elapsedTotal < timeConsumed + movDuration) {
+            currentHoldIndex = i;
+            currentHoldTime = (timeConsumed + movDuration) - elapsedTotal;
+            finished = false;
+            break;
+          }
+          timeConsumed += movDuration;
+          finished = true;
+        }
+
+        if (finished) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_phase == "ACTIVE") _stopAndSave();
+          });
+          displayPhase = "IDLE"; // Avoid visual glitch on last frame
+        }
+      }
+    } else {
+      displayPhase = "IDLE";
+    }
+
     return Column(
       children: [
         Container(
@@ -2751,7 +3167,7 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
           ),
         ),
         const SizedBox(height: 40),
-        if (_phase == "IDLE") ...[
+        if (displayPhase == "IDLE") ...[
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -2833,7 +3249,7 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
               ),
             ),
           ),
-        ] else if (_phase == "PREP") ...[
+        ] else if (displayPhase == "PREP") ...[
           Text(
             "GET READY",
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -2843,15 +3259,15 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
           ),
           const SizedBox(height: 16),
           Text(
-            "-$_prepTime",
+            "-$prepTime",
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
               fontSize: 140,
               color: colorScheme.primary,
             ),
           ),
-        ] else if (_phase == "RUNNING") ...[
+        ] else if (displayPhase == "RUNNING") ...[
           ...List.generate(widget.exercise.movements.length, (index) {
-            final isActive = index == _currentHoldIndex;
+            final isActive = index == currentHoldIndex;
             final mov = widget.exercise.movements[index];
             if (isActive) {
               return Container(
@@ -2875,7 +3291,7 @@ class _IsoPositionsWorkoutViewState extends State<IsoPositionsWorkoutView> {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      "$_currentHoldTime",
+                      "$currentHoldTime",
                       style: Theme.of(context).textTheme.displayLarge?.copyWith(
                         fontSize: 100,
                         color: colorScheme.primary,
@@ -2943,7 +3359,9 @@ class _PyramidWorkoutViewState extends State<PyramidWorkoutView> {
   void initState() {
     super.initState();
     _calculateSequence();
-    _repsController.text = _getTargetRepsForCurrentSet().toString();
+    _repsController.text =
+        widget.progress.activeExState['input'] ??
+        _getTargetRepsForCurrentSet().toString();
   }
 
   void _calculateSequence() {
@@ -3026,6 +3444,7 @@ class _PyramidWorkoutViewState extends State<PyramidWorkoutView> {
         currentExIdx: isLastSet
             ? widget.progress.currentExIdx + 1
             : widget.progress.currentExIdx,
+        activeExState: const {},
       ),
     );
   }
@@ -3138,6 +3557,16 @@ class _PyramidWorkoutViewState extends State<PyramidWorkoutView> {
                 TextField(
                   controller: _repsController,
                   keyboardType: TextInputType.number,
+                  onChanged: (val) {
+                    widget.provider.updateProgress(
+                      widget.progress.copyWith(
+                        activeExState: {
+                          ...widget.progress.activeExState,
+                          'input': val,
+                        },
+                      ),
+                    );
+                  },
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
                     fontSize: 80,
                     height: 1,
@@ -3194,8 +3623,8 @@ class MultiEmomWorkoutView extends StatefulWidget {
 }
 
 class _MultiEmomWorkoutViewState extends State<MultiEmomWorkoutView> {
-  bool _isStarted = false;
-  int _endTime = 0;
+  bool get _isStarted => widget.progress.activeExState['isStarted'] ?? false;
+  int get _endTime => widget.progress.activeExState['endTime'] ?? 0;
 
   int get _totalIntervals =>
       widget.exercise.minutes.length * widget.exercise.totalRounds;
@@ -3210,24 +3639,31 @@ class _MultiEmomWorkoutViewState extends State<MultiEmomWorkoutView> {
 
   void _startEmom() {
     if (widget.exercise.minutes.isEmpty) return;
-    setState(() {
-      _isStarted = true;
-      _endTime =
-          DateTime.now().millisecondsSinceEpoch +
-          (widget.exercise.everyXSeconds * 1000);
-    });
+    widget.provider.updateProgress(
+      widget.progress.copyWith(
+        activeExState: {
+          'isStarted': true,
+          'endTime':
+              DateTime.now().millisecondsSinceEpoch +
+              (widget.exercise.everyXSeconds * 1000),
+        },
+      ),
+    );
   }
 
   void _onMinuteFinished() {
     final currentMin = widget.progress.currentSetIdx;
     if (currentMin < _totalIntervals) {
-      setState(
-        () => _endTime =
-            DateTime.now().millisecondsSinceEpoch +
-            (widget.exercise.everyXSeconds * 1000),
-      );
       widget.provider.updateProgress(
-        widget.progress.copyWith(currentSetIdx: currentMin + 1),
+        widget.progress.copyWith(
+          currentSetIdx: currentMin + 1,
+          activeExState: {
+            'isStarted': true,
+            'endTime':
+                DateTime.now().millisecondsSinceEpoch +
+                (widget.exercise.everyXSeconds * 1000),
+          },
+        ),
       );
     } else {
       _finishExercise();
@@ -3598,6 +4034,7 @@ class _RestBlockWorkoutViewState extends State<RestBlockWorkoutView> {
         restEndTime: 0,
         currentSetIdx: 1,
         currentExIdx: widget.progress.currentExIdx + 1,
+        activeExState: const {},
       ),
     );
   }
@@ -3807,7 +4244,10 @@ class UpcomingExerciseCard extends StatelessWidget {
       if (ex is Classic) return "Set $nextSetIndex of $totalSets";
       if (ex is Pyramid) return "Step $nextSetIndex of $totalSets";
       if (ex is IsoMax) return "Hold @ ${ex.weight}kg";
-      if (ex is Circuit) return "Circuit round";
+      if (ex is Circuit) return "Round $nextSetIndex of $totalSets";
+      if (ex is Emom) return "Round $nextSetIndex of $totalSets";
+      if (ex is MultiEmom) return "Interval $nextSetIndex of $totalSets";
+      if (ex is Amrap) return "Ongoing";
       return "Next set";
     } else {
       if (ex is Classic) return "${ex.sets}x${ex.reps} @ ${ex.weight}kg";
@@ -3821,6 +4261,7 @@ class UpcomingExerciseCard extends StatelessWidget {
       if (ex is IsoMax) return "ISOMETRIC - MAX HOLD";
       if (ex is IsoPositions) return "ISOMETRIC POSITIONS";
       if (ex is RestBlock) return "REST BLOCK - ${ex.restSeconds}s";
+      if (ex is FreeTime) return "FREE TIME (Stopwatch)";
     }
     return "";
   }
@@ -3986,8 +4427,9 @@ class SummaryView extends StatelessWidget {
                     "$setsCount MICRO-SETS • [${exLogs.map((l) => l.repsCompleted).join("-")}] REPS";
                 break;
               case ExerciseType.emom:
+                final w = exLogs.first.weightAdded;
                 detailsStr =
-                    "1 SET • ${exLogs.fold<int>(0, (sum, l) => sum + l.repsCompleted)} TOTAL REPS";
+                    "1 SET • ${exLogs.fold<int>(0, (sum, l) => sum + l.repsCompleted)} TOTAL REPS${w > 0 ? ' @ ${w}kg' : ''}";
                 break;
               case ExerciseType.cluster:
                 final min = exLogs.first.durationSeconds ~/ 60;
@@ -4001,6 +4443,13 @@ class SummaryView extends StatelessWidget {
                 break;
               case ExerciseType.circuit:
                 detailsStr = "$setsCount ROUNDS COMPLETED";
+                break;
+              case ExerciseType.freeTime:
+                final duration = exLogs.first.durationSeconds;
+                final min = duration ~/ 60;
+                final sec = duration % 60;
+                detailsStr =
+                    "1 SET • ${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}";
                 break;
               default:
                 break;

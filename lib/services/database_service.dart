@@ -1,3 +1,5 @@
+// lib/services/database_service.dart
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/workout_models.dart';
@@ -32,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 5, // Version bumped to 5 for programs
+      version: 6, // Version bumped to 6 for modules
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -69,6 +71,15 @@ class DatabaseService {
                 isActive INTEGER,
                 weeks TEXT,
                 completedSessionIds TEXT
+              )
+            ''');
+        }
+        if (oldVersion < 6) {
+          await db.execute('''
+              CREATE TABLE assets_modules (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                exercises TEXT
               )
             ''');
         }
@@ -139,6 +150,13 @@ class DatabaseService {
             targetSets INTEGER,
             targetReps INTEGER,
             weightIncrement REAL
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE assets_modules (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            exercises TEXT
           )
         ''');
       },
@@ -308,7 +326,7 @@ class DatabaseService {
   }
 
   // ==========================================
-  // DAO: ASSETS & CONDITIONS
+  // DAO: ASSETS & CONDITIONS & MODULES
   // ==========================================
 
   Future<void> insertAsset(AssetExercise asset) async {
@@ -351,5 +369,25 @@ class DatabaseService {
   Future<void> deleteCondition(String id) async {
     final db = await database;
     await db.delete('progression_conditions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> insertModule(AssetModule module) async {
+    final db = await database;
+    await db.insert(
+      'assets_modules',
+      module.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<AssetModule>> getAllModules() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('assets_modules');
+    return maps.map((map) => AssetModule.fromMap(map)).toList();
+  }
+
+  Future<void> deleteModule(String id) async {
+    final db = await database;
+    await db.delete('assets_modules', where: 'id = ?', whereArgs: [id]);
   }
 }

@@ -1,3 +1,5 @@
+// lib/models/workout_models.dart
+
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
 
@@ -18,7 +20,9 @@ enum ExerciseType {
   circuit("CIRCUIT (Multi-exercise)"),
   isoMax("ISOMETRIC (Max Hold)"),
   isoPositions("ISOMETRIC (Multi-Hold)"),
-  restBlock("REST BLOCK (Custom Timer)");
+  restBlock("REST BLOCK (Custom Timer)"),
+  freeTime("FREE TIME (Stopwatch)"),
+  moduleBlock("MODULE (Group)");
 
   final String label;
   const ExerciseType(this.label);
@@ -245,6 +249,12 @@ sealed class Exercise {
           restSeconds: map['restSeconds'],
           condition: parsedCondition,
         );
+      case 'FreeTime':
+        return FreeTime(
+          id: map['id'],
+          name: map['name'],
+          condition: parsedCondition,
+        );
       case 'Pyramid':
         return Pyramid(
           id: map['id'],
@@ -269,6 +279,17 @@ sealed class Exercise {
           minutes:
               (map['minutes'] as List?)
                   ?.map((e) => EmomMinuteGroup.fromMap(e))
+                  .toList() ??
+              [],
+          condition: parsedCondition,
+        );
+      case 'ModuleBlock':
+        return ModuleBlock(
+          id: map['id'],
+          name: map['name'],
+          exercises:
+              (map['exercises'] as List?)
+                  ?.map((e) => Exercise.fromMap(e))
                   .toList() ??
               [],
           condition: parsedCondition,
@@ -680,6 +701,204 @@ class RestBlock implements Exercise {
   };
 }
 
+class FreeTime implements Exercise {
+  @override
+  final String id;
+  @override
+  final String name;
+  @override
+  final ProgressionCondition? condition;
+
+  FreeTime({String? id, required this.name, this.condition})
+    : id = id ?? uuid.v4();
+
+  @override
+  FreeTime copyWithCondition(ProgressionCondition? newCondition) {
+    return FreeTime(id: id, name: name, condition: newCondition);
+  }
+
+  @override
+  Map<String, dynamic> toMap() => {
+    'type': 'FreeTime',
+    'id': id,
+    'name': name,
+    'condition': condition?.toMap(),
+  };
+}
+
+class Pyramid implements Exercise {
+  @override
+  final String id;
+  @override
+  final String name;
+  @override
+  final ProgressionCondition? condition;
+
+  final int minReps;
+  final int maxReps;
+  final int increment;
+  final double weight;
+  final int restSeconds;
+  final PyramidType pyramidType;
+
+  Pyramid({
+    String? id,
+    required this.name,
+    required this.minReps,
+    required this.maxReps,
+    required this.increment,
+    this.weight = 0.0,
+    required this.restSeconds,
+    this.pyramidType = PyramidType.upAndDown,
+    this.condition,
+  }) : id = id ?? uuid.v4();
+
+  @override
+  Pyramid copyWithCondition(ProgressionCondition? newCondition) {
+    return Pyramid(
+      id: id,
+      name: name,
+      minReps: minReps,
+      maxReps: maxReps,
+      increment: increment,
+      weight: weight,
+      restSeconds: restSeconds,
+      pyramidType: pyramidType,
+      condition: newCondition,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toMap() => {
+    'type': 'Pyramid',
+    'id': id,
+    'name': name,
+    'minReps': minReps,
+    'maxReps': maxReps,
+    'increment': increment,
+    'weight': weight,
+    'restSeconds': restSeconds,
+    'pyramidType': pyramidType.name,
+    'condition': condition?.toMap(),
+  };
+}
+
+class MultiEmom implements Exercise {
+  @override
+  final String id;
+  @override
+  final String name;
+  @override
+  final ProgressionCondition? condition;
+  final int everyXSeconds;
+  final int totalRounds;
+  final List<EmomMinuteGroup> minutes;
+
+  MultiEmom({
+    String? id,
+    required this.name,
+    required this.everyXSeconds,
+    required this.totalRounds,
+    this.minutes = const [],
+    this.condition,
+  }) : id = id ?? uuid.v4();
+
+  @override
+  MultiEmom copyWithCondition(ProgressionCondition? newCondition) {
+    return MultiEmom(
+      id: id,
+      name: name,
+      everyXSeconds: everyXSeconds,
+      totalRounds: totalRounds,
+      minutes: minutes,
+      condition: newCondition,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toMap() => {
+    'type': 'MultiEmom',
+    'id': id,
+    'name': name,
+    'everyXSeconds': everyXSeconds,
+    'totalRounds': totalRounds,
+    'minutes': minutes.map((e) => e.toMap()).toList(),
+    'condition': condition?.toMap(),
+  };
+}
+
+// ==========================================
+// MODULES MODELS
+// ==========================================
+
+class AssetModule {
+  final String id;
+  String name;
+  List<Exercise> exercises;
+
+  AssetModule({String? id, required this.name, this.exercises = const []})
+    : id = id ?? uuid.v4();
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'exercises': jsonEncode(exercises.map((e) => e.toMap()).toList()),
+    };
+  }
+
+  factory AssetModule.fromMap(Map<String, dynamic> map) {
+    var exercisesList = <Exercise>[];
+    if (map['exercises'] != null) {
+      final decoded = jsonDecode(map['exercises']) as List;
+      exercisesList = decoded
+          .map((e) => Exercise.fromMap(e as Map<String, dynamic>))
+          .toList();
+    }
+    return AssetModule(
+      id: map['id'],
+      name: map['name'],
+      exercises: exercisesList,
+    );
+  }
+}
+
+class ModuleBlock implements Exercise {
+  @override
+  final String id;
+  @override
+  final String name;
+  @override
+  final ProgressionCondition? condition;
+  final List<Exercise> exercises;
+
+  ModuleBlock({
+    String? id,
+    required this.name,
+    this.exercises = const [],
+    this.condition,
+  }) : id = id ?? uuid.v4();
+
+  @override
+  ModuleBlock copyWithCondition(ProgressionCondition? newCondition) {
+    return ModuleBlock(
+      id: id,
+      name: name,
+      exercises: exercises,
+      condition: newCondition,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toMap() => {
+    'type': 'ModuleBlock',
+    'id': id,
+    'name': name,
+    'exercises': exercises.map((e) => e.toMap()).toList(),
+    'condition': condition?.toMap(),
+  };
+}
+
 // ==========================================
 // SESSION MODELS
 // ==========================================
@@ -974,105 +1193,4 @@ class Program {
           : [],
     );
   }
-}
-
-class Pyramid implements Exercise {
-  @override
-  final String id;
-  @override
-  final String name;
-  @override
-  final ProgressionCondition? condition;
-
-  final int minReps;
-  final int maxReps;
-  final int increment;
-  final double weight;
-  final int restSeconds;
-  final PyramidType pyramidType;
-
-  Pyramid({
-    String? id,
-    required this.name,
-    required this.minReps,
-    required this.maxReps,
-    required this.increment,
-    this.weight = 0.0,
-    required this.restSeconds,
-    this.pyramidType = PyramidType.upAndDown,
-    this.condition,
-  }) : id = id ?? uuid.v4();
-
-  @override
-  Pyramid copyWithCondition(ProgressionCondition? newCondition) {
-    return Pyramid(
-      id: id,
-      name: name,
-      minReps: minReps,
-      maxReps: maxReps,
-      increment: increment,
-      weight: weight,
-      restSeconds: restSeconds,
-      pyramidType: pyramidType,
-      condition: newCondition,
-    );
-  }
-
-  @override
-  Map<String, dynamic> toMap() => {
-    'type': 'Pyramid',
-    'id': id,
-    'name': name,
-    'minReps': minReps,
-    'maxReps': maxReps,
-    'increment': increment,
-    'weight': weight,
-    'restSeconds': restSeconds,
-    'pyramidType': pyramidType.name,
-    'condition': condition?.toMap(),
-  };
-}
-
-class MultiEmom implements Exercise {
-  @override
-  final String id;
-  @override
-  final String name;
-  @override
-  final ProgressionCondition? condition;
-  final int everyXSeconds;
-  final int totalRounds;
-  final List<EmomMinuteGroup> minutes;
-
-  MultiEmom({
-    String? id,
-    required this.name,
-    required this.everyXSeconds,
-    required this.totalRounds,
-    this.minutes = const [],
-    this.condition,
-  }) : id = id ?? uuid.v4();
-
-  @override
-  MultiEmom copyWithCondition(ProgressionCondition? newCondition) {
-    return MultiEmom(
-      id: id,
-      name: name,
-      everyXSeconds: everyXSeconds,
-      totalRounds: totalRounds,
-      minutes: minutes,
-      condition: newCondition,
-    );
-  }
-
-  @override
-  Map<String, dynamic> toMap() => {
-    'type': 'MultiEmom',
-    'id': id,
-    'name': name,
-    'everyXSeconds': everyXSeconds,
-    'totalRounds': totalRounds,
-    'minutes': minutes.map((e) => e.toMap()).toList(),
-    'condition': condition?.toMap(),
-  };
 }

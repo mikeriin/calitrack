@@ -61,6 +61,8 @@ class SessionProgress {
   final bool isSaved;
   final List<String> stats;
   final List<WorkoutLogEntry> logs;
+  final Map<String, dynamic>
+  activeExState; // <-- NOUVEAU: Sauvegarde l'état local de l'exo en cours
 
   SessionProgress({
     this.sessionId = "",
@@ -74,6 +76,7 @@ class SessionProgress {
     this.isSaved = false,
     this.stats = const [],
     this.logs = const [],
+    this.activeExState = const {}, // Initialisation par défaut
   });
 
   SessionProgress copyWith({
@@ -88,6 +91,7 @@ class SessionProgress {
     bool? isSaved,
     List<String>? stats,
     List<WorkoutLogEntry>? logs,
+    Map<String, dynamic>? activeExState,
   }) {
     return SessionProgress(
       sessionId: sessionId ?? this.sessionId,
@@ -101,6 +105,7 @@ class SessionProgress {
       isSaved: isSaved ?? this.isSaved,
       stats: stats ?? this.stats,
       logs: logs ?? this.logs,
+      activeExState: activeExState ?? this.activeExState,
     );
   }
 }
@@ -117,6 +122,7 @@ class ProgressRepository {
   static const _isSavedKey = 'is_saved';
   static const _statsKey = 'stats_json';
   static const _logsKey = 'logs_json';
+  static const _activeExStateKey = 'active_ex_state'; // <-- NOUVELLE CLÉ
 
   static const _isDarkModeKey = 'is_dark_mode';
   static const _dataFolderKey = 'data_folder_path';
@@ -131,6 +137,9 @@ class ProgressRepository {
   Stream<SessionProgress> get progressFlow => _progressController.stream;
   Stream<bool> get isDarkModeFlow => _darkModeController.stream;
   Stream<void> get settingsFlow => _settingsController.stream;
+
+  SessionProgress _currentProgress = SessionProgress();
+  SessionProgress get currentProgress => _currentProgress;
 
   bool _isDarkMode = true;
   bool get isDarkMode => _isDarkMode;
@@ -150,7 +159,8 @@ class ProgressRepository {
     keepAwake = prefs.getBool(_keepAwakeKey) ?? false;
 
     _darkModeController.add(_isDarkMode);
-    _progressController.add(await _readProgressFromPrefs());
+    _currentProgress = await _readProgressFromPrefs();
+    _progressController.add(_currentProgress);
   }
 
   Future<SessionProgress> _readProgressFromPrefs() async {
@@ -169,6 +179,12 @@ class ProgressRepository {
       logsList = decoded.map((e) => WorkoutLogEntry.fromMap(e)).toList();
     }
 
+    Map<String, dynamic> activeState = {};
+    final activeStateJson = prefs.getString(_activeExStateKey);
+    if (activeStateJson != null) {
+      activeState = Map<String, dynamic>.from(jsonDecode(activeStateJson));
+    }
+
     return SessionProgress(
       sessionId: prefs.getString(_sessionIdKey) ?? "",
       currentExIdx: prefs.getInt(_exIdxKey) ?? 0,
@@ -181,10 +197,12 @@ class ProgressRepository {
       isSaved: prefs.getBool(_isSavedKey) ?? false,
       stats: statsList,
       logs: logsList,
+      activeExState: activeState,
     );
   }
 
   Future<void> saveProgress(SessionProgress progress) async {
+    _currentProgress = progress;
     final prefs = await SharedPreferences.getInstance();
 
     await prefs.setString(_sessionIdKey, progress.sessionId);
@@ -197,6 +215,10 @@ class ProgressRepository {
     await prefs.setBool(_isFinishedKey, progress.isFinished);
     await prefs.setBool(_isSavedKey, progress.isSaved);
     await prefs.setString(_statsKey, jsonEncode(progress.stats));
+    await prefs.setString(
+      _activeExStateKey,
+      jsonEncode(progress.activeExState),
+    ); // <-- SAUVEGARDE DE L'ÉTAT LOCAL
     await prefs.setString(
       _logsKey,
       jsonEncode(progress.logs.map((e) => e.toMap()).toList()),
@@ -219,11 +241,13 @@ class ProgressRepository {
       _isSavedKey,
       _statsKey,
       _logsKey,
+      _activeExStateKey, // <-- PURGE DE L'ÉTAT LOCAL
     ];
     for (String key in keysToRemove) {
       await prefs.remove(key);
     }
-    _progressController.add(SessionProgress());
+    _currentProgress = SessionProgress();
+    _progressController.add(_currentProgress);
   }
 
   Future<void> setDarkMode(bool isDark) async {

@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:path_provider/path_provider.dart';
-import '../main.dart'; // Pour accéder à progressRepository
+import '../main.dart';
 import '../models/workout_models.dart';
 import '../viewmodels/asset_provider.dart';
 
@@ -131,7 +131,7 @@ class AssetsScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
@@ -177,18 +177,25 @@ class AssetsScreen extends StatelessWidget {
             indicatorWeight: 4,
             indicatorSize: TabBarIndicatorSize.tab,
             dividerColor: colorScheme.surfaceContainerHighest,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             labelStyle: const TextStyle(
               fontWeight: FontWeight.w900,
               letterSpacing: 1,
             ),
             tabs: const [
               Tab(text: "EXERCISES"),
+              Tab(text: "MODULES"),
               Tab(text: "CONDITIONS"),
             ],
           ),
         ),
         body: const TabBarView(
-          children: [_ExercisesTabView(), _ConditionsTabView()],
+          children: [
+            _ExercisesTabView(),
+            _ModulesTabView(),
+            _ConditionsTabView(),
+          ],
         ),
       ),
     );
@@ -244,13 +251,16 @@ class _ExercisesTabViewState extends State<_ExercisesTabView> {
               physics: const BouncingScrollPhysics(),
               children: [
                 _buildFilterChip("ALL", null, colorScheme),
-                ...ExerciseType.values.map(
-                  (type) => _buildFilterChip(
+                ...ExerciseType.values.map((type) {
+                  // On empêche le filtre sur le moduleBlock interne qui n'est pas censé apparaitre en pur asset Exercise
+                  if (type == ExerciseType.moduleBlock)
+                    return const SizedBox.shrink();
+                  return _buildFilterChip(
                     type.name.toUpperCase(),
                     type,
                     colorScheme,
-                  ),
-                ),
+                  );
+                }),
               ],
             ),
           ),
@@ -307,7 +317,230 @@ class _ExercisesTabViewState extends State<_ExercisesTabView> {
   }
 }
 
-// ... (vers la ligne 218)
+class _ModulesTabView extends StatelessWidget {
+  const _ModulesTabView();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AssetProvider>();
+    final modules = provider.modules;
+    final conditions = provider.conditions;
+    final bool isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final accentColor = Colors.orange;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: isKeyboardOpen
+          ? null
+          : Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(
+                      context,
+                    ).scaffoldBackgroundColor.withValues(alpha: 0.95),
+                    blurRadius: 40,
+                    spreadRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (conditions.isNotEmpty)
+                    Flexible(
+                      child: ShaderMask(
+                        shaderCallback: (Rect bounds) {
+                          return const LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Colors.white,
+                              Colors.white,
+                              Colors.transparent,
+                            ],
+                            stops: [0.0, 0.85, 1.0],
+                          ).createShader(bounds);
+                        },
+                        blendMode: BlendMode.dstIn,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.only(right: 32),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: conditions.map((condition) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 12.0),
+                                child: SizedBox(
+                                  width: 80,
+                                  child:
+                                      LongPressDraggable<ProgressionCondition>(
+                                        data: condition,
+                                        delay: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        feedback: Material(
+                                          color: Colors.transparent,
+                                          child: SizedBox(
+                                            width: 80,
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  height: 64,
+                                                  width: 64,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.green
+                                                        .withValues(
+                                                          alpha: 0.15,
+                                                        ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
+                                                        ),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.trending_up_rounded,
+                                                    color: Colors.green,
+                                                    size: 32,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Text(
+                                                  condition.name,
+                                                  textAlign: TextAlign.center,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        childWhenDragging: Opacity(
+                                          opacity: 0.3,
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                height: 64,
+                                                width: 64,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green
+                                                      .withValues(alpha: 0.15),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.trending_up_rounded,
+                                                  color: Colors.green,
+                                                  size: 32,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                condition.name,
+                                                textAlign: TextAlign.center,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              height: 64,
+                                              width: 64,
+                                              decoration: BoxDecoration(
+                                                color: Colors.green.withValues(
+                                                  alpha: 0.15,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: const Icon(
+                                                Icons.trending_up_rounded,
+                                                color: Colors.green,
+                                                size: 32,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Text(
+                                              condition.name,
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 16),
+                  FloatingActionButton.extended(
+                    onPressed: () =>
+                        provider.addModule(AssetModule(name: "New Module")),
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    icon: const Icon(Icons.view_module_rounded, size: 24),
+                    label: const Text(
+                      "NEW MODULE",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(24).copyWith(bottom: 160, top: 24),
+        physics: const BouncingScrollPhysics(),
+        itemCount: modules.length,
+        itemBuilder: (context, index) {
+          final module = modules[index];
+          return ModuleCard(
+            key: ValueKey(module.id),
+            module: module,
+            onDelete: () => provider.deleteModule(module.id),
+            onUpdate: (updated) => provider.updateModule(updated),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _ConditionsTabView extends StatelessWidget {
   const _ConditionsTabView();
 
@@ -315,7 +548,6 @@ class _ConditionsTabView extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<AssetProvider>();
     final conditions = provider.conditions;
-    // final colorScheme = Theme.of(context).colorScheme;
     final bool isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
@@ -332,8 +564,8 @@ class _ConditionsTabView extends StatelessWidget {
                   weightIncrement: 0.0,
                 ),
               ),
-              backgroundColor: Colors.green, // <--- Modifié ici
-              foregroundColor: Colors.white, // <--- Assure un bon contraste
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
               elevation: 8,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -355,7 +587,7 @@ class _ConditionsTabView extends StatelessWidget {
             condition: condition,
             onDelete: () => provider.deleteCondition(condition.id),
             onUpdate: (updated) => provider.updateCondition(updated),
-            accentColor: Colors.green, // <--- Modifié ici
+            accentColor: Colors.green,
           );
         },
       ),
@@ -516,6 +748,7 @@ class _AssetCardState extends State<AssetCard> {
                     isExpanded: true,
                     decoration: _buildInputDeco("Format", colorScheme),
                     items: ExerciseType.values
+                        .where((t) => t != ExerciseType.moduleBlock)
                         .map(
                           (type) => DropdownMenuItem(
                             value: type,
@@ -542,6 +775,445 @@ class _AssetCardState extends State<AssetCard> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class ModuleCard extends StatefulWidget {
+  final AssetModule module;
+  final VoidCallback onDelete;
+  final ValueChanged<AssetModule> onUpdate;
+
+  const ModuleCard({
+    super.key,
+    required this.module,
+    required this.onDelete,
+    required this.onUpdate,
+  });
+
+  @override
+  State<ModuleCard> createState() => _ModuleCardState();
+}
+
+class _ModuleCardState extends State<ModuleCard> {
+  bool _isExpanded = false;
+  late TextEditingController _nameCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.module.name);
+  }
+
+  @override
+  void didUpdateWidget(ModuleCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.module != widget.module) {
+      _nameCtrl.text = widget.module.name;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  void _saveInlineEdits() {
+    final updatedModule = AssetModule(
+      id: widget.module.id,
+      name: _nameCtrl.text.trim().isEmpty
+          ? "Unnamed Module"
+          : _nameCtrl.text.trim(),
+      exercises: widget.module.exercises,
+    );
+    widget.onUpdate(updatedModule);
+  }
+
+  void _onReorderExercises(int oldIndex, int newIndex) {
+    if (newIndex > widget.module.exercises.length)
+      newIndex = widget.module.exercises.length;
+    if (oldIndex < newIndex) newIndex -= 1;
+    final List<Exercise> currentExercises = List.from(widget.module.exercises);
+    final Exercise item = currentExercises.removeAt(oldIndex);
+    currentExercises.insert(newIndex, item);
+
+    final updatedModule = AssetModule(
+      id: widget.module.id,
+      name: widget.module.name,
+      exercises: currentExercises,
+    );
+    widget.onUpdate(updatedModule);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final accentColor = Colors.orange;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isLight
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+        border: Border.all(
+          color: _isExpanded
+              ? accentColor
+              : (isLight
+                    ? Colors.transparent
+                    : colorScheme.surfaceContainerHighest),
+          width: _isExpanded ? 2 : 1,
+        ),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          onExpansionChanged: (expanded) {
+            setState(() => _isExpanded = expanded);
+            if (!expanded) {
+              Future.delayed(const Duration(milliseconds: 250), () {
+                if (mounted) _saveInlineEdits();
+              });
+            }
+          },
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          leading: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.view_module_rounded, color: accentColor),
+          ),
+          title: Text(
+            widget.module.name.toUpperCase(),
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+          subtitle: Text(
+            "${widget.module.exercises.length} Exercises",
+            style: TextStyle(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          trailing: IconButton(
+            icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
+            onPressed: widget.onDelete,
+            style: IconButton.styleFrom(
+              backgroundColor: colorScheme.error.withValues(alpha: 0.1),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _nameCtrl,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    decoration: _buildInputDeco("Module Name", colorScheme),
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (widget.module.exercises.isNotEmpty)
+                    ReorderableListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: widget.module.exercises.length,
+                      onReorder: _onReorderExercises,
+                      itemBuilder: (context, index) {
+                        final ex = widget.module.exercises[index];
+                        return Container(
+                          key: ValueKey(ex.id),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          // List Tile ultra-simple: AUCUNE MODIFICATION DÉTAILLÉE N'EST PERMISE ICI
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            leading: Icon(
+                              ex is RestBlock
+                                  ? Icons.timer_rounded
+                                  : Icons.fitness_center_rounded,
+                              color: accentColor,
+                            ),
+                            title: Text(
+                              ex.name.toUpperCase(),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                              ),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.drag_handle_rounded,
+                                  color: colorScheme.onSurfaceVariant
+                                      .withValues(alpha: 0.5),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: colorScheme.error,
+                                  ),
+                                  onPressed: () {
+                                    final currentList = List<Exercise>.from(
+                                      widget.module.exercises,
+                                    );
+                                    currentList.removeAt(index);
+                                    widget.onUpdate(
+                                      AssetModule(
+                                        id: widget.module.id,
+                                        name: widget.module.name,
+                                        exercises: currentList,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showAddExerciseToModuleDialog(context),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text(
+                        "ADD EXERCISE",
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: accentColor,
+                        side: BorderSide(color: accentColor, width: 2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAddExerciseToModuleDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _ModuleAssetSelectionDialog(
+        onPicked: (newEx) {
+          final currentList = List<Exercise>.from(widget.module.exercises);
+          currentList.add(newEx);
+          widget.onUpdate(
+            AssetModule(
+              id: widget.module.id,
+              name: widget.module.name,
+              exercises: currentList,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ModuleAssetSelectionDialog extends StatelessWidget {
+  final ValueChanged<Exercise> onPicked;
+  const _ModuleAssetSelectionDialog({required this.onPicked});
+
+  Exercise _createDefaultExercise(AssetExercise asset) {
+    switch (asset.type) {
+      case ExerciseType.classic:
+        return Classic(
+          name: asset.name,
+          sets: 0,
+          reps: 0,
+          weight: 0.0,
+          rest: 0,
+        );
+      case ExerciseType.pyramid:
+        return Pyramid(
+          name: asset.name,
+          minReps: 0,
+          maxReps: 0,
+          increment: 0,
+          restSeconds: 0,
+        );
+      case ExerciseType.multiEmom:
+        return MultiEmom(
+          name: asset.name,
+          everyXSeconds: 60,
+          totalRounds: 1,
+          minutes: [],
+        );
+      case ExerciseType.amrap:
+        return Amrap(name: asset.name, timeCapMinutes: 0);
+      case ExerciseType.emom:
+        return Emom(name: asset.name, everyXSeconds: 0, totalRounds: 0);
+      case ExerciseType.restPause:
+        return RestPause(name: asset.name, microSets: 0, restSeconds: 0);
+      case ExerciseType.cluster:
+        return Cluster(name: asset.name, targetReps: 0, incrementFactor: 1);
+      case ExerciseType.circuit:
+        return Circuit(name: asset.name, sets: 0, restSeconds: 0);
+      case ExerciseType.isoMax:
+        return IsoMax(name: asset.name, sets: 0, restSeconds: 0);
+      case ExerciseType.isoPositions:
+        return IsoPositions(name: asset.name, sets: 0, restSeconds: 0);
+      case ExerciseType.restBlock:
+        return RestBlock(restSeconds: 0);
+      default:
+        return RestBlock(restSeconds: 0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final assetProvider = context.watch<AssetProvider>();
+    final colorScheme = Theme.of(context).colorScheme;
+    final assets = assetProvider.assets;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      backgroundColor: colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: colorScheme.surfaceContainerHighest, width: 1),
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "ADD EXERCISE",
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                    color: colorScheme.onSurfaceVariant,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const BouncingScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 20,
+                    crossAxisSpacing: 20,
+                    childAspectRatio: 0.55,
+                  ),
+                  itemCount: assets.length,
+                  itemBuilder: (context, index) {
+                    final asset = assets[index];
+                    return GestureDetector(
+                      onTap: () {
+                        onPicked(_createDefaultExercise(asset));
+                        Navigator.pop(context);
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            asset.type.label.toUpperCase(),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: colorScheme.primary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            height: 64,
+                            width: 64,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withValues(
+                                alpha: 0.15,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Icon(
+                              asset.type == ExerciseType.restBlock
+                                  ? Icons.timer_rounded
+                                  : Icons.fitness_center_rounded,
+                              color: colorScheme.primary,
+                              size: 32,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            asset.name,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
